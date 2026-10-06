@@ -12,18 +12,27 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: npm install -g @anthropic-ai/claude-code
-      - name: Validate marketplace + plugin
+      - name: Validate marketplace + plugin manifests
         run: |
           claude plugin validate .
           claude plugin validate plugins/bobiverse
-      - name: Hook scripts compile and run against synthetic events
+      - name: Frontmatter parses on every agent, command, and output style
         run: |
-          python3 -m py_compile plugins/bobiverse/hooks/scripts/*.py plugins/bobiverse/statusline/*.py
-          cd plugins/bobiverse/hooks/scripts
-          printf '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | python3 busters.py | grep -q '"deny"'
-          printf '{"tool_name":"Bash","tool_input":{"command":"terraform destroy"}}' | python3 busters.py | grep -q '"ask"'
-          printf '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | python3 busters.py | test -z "$(cat)"
-          printf '{"tool_name":"Write","tool_input":{"file_path":"x/.env","content":"A=1"}}' | python3 suddar.py | grep -q '"deny"'
-          printf '{"tool_name":"Write","tool_input":{"file_path":"x.py","content":"k=\"AKIAQ3EGTR7Z2MPLN4XB\""}}' | python3 suddar.py | grep -q '"deny"'
-          printf '{"tool_name":"Edit","tool_input":{"file_path":".github/workflows/ci.yml"}}' | python3 prime_directive.py | grep -q '"ask"'
-          echo "hooks OK"
+          pip install -q pyyaml
+          python3 - <<'EOF'
+          import yaml, glob, sys
+          bad = 0
+          for f in glob.glob('plugins/bobiverse/agents/*.md') + glob.glob('plugins/bobiverse/commands/*.md') + glob.glob('plugins/bobiverse/output-styles/*.md'):
+              try:
+                  fm = yaml.safe_load(open(f).read().split('---')[1])
+                  assert fm.get('description'), 'missing description'
+              except Exception as e:
+                  print(f'FAIL {f}: {e}'); bad += 1
+          print('frontmatter ok' if not bad else f'{bad} bad'); sys.exit(bad)
+          EOF
+      - name: Hook self-tests
+        run: python3 plugins/bobiverse/hooks/scripts/selftest.py
+      - name: Status line renders
+        run: |
+          echo '{"model":{"display_name":"Claude"},"workspace":{"current_dir":"."},"context_window":{"used_percentage":12}}' \
+            | BOBS_LOG_NOCOLOR=1 python3 plugins/bobiverse/statusline/bobs-log.py
