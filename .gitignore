@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.bobnet/*.marker
+.bobnet/mission-*.md
+.bobnet/busters.disarmed

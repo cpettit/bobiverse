@@ -1,0 +1,32 @@
+{
+  "_comment": "Example .bobnet/ config files. Copy any of these into your project's .bobnet/ to override defaults. All keys optional.",
+
+  "busters.json": {
+    "ask_extra": ["\\bmy-dangerous-cli\\s+nuke\\b"],
+    "allow": ["\\brm\\s+-rf\\s+\\./?(dist|build|node_modules|\\.cache)/?\\s*$"]
+  },
+
+  "prime-directive.json": {
+    "ask_extra": ["(^|/)charts/prod/", "(^|/)ansible/inventory/production"],
+    "deny": ["(^|/)\\.git/(config|hooks/|objects/)", "(^|/)compliance/evidence/"]
+  },
+
+  "suddar.json": {
+    "allow_paths": ["\\.example$", "\\.sample$", "(^|/)tests?/fixtures/", "(^|/)docs/"],
+    "allow_patterns": []
+  },
+
+  "autofactory.json": {
+    "enabled": true,
+    "format": true,
+    "lint": true,
+    "skip": ["(^|/)node_modules/", "(^|/)vendor/", "(^|/)generated/"]
+  },
+
+  "scut.json": {
+    "ntfy_url": "https://ntfy.sh/replace-with-a-long-random-topic",
+    "webhook_url": null,
+    "min_seconds": 300,
+    "notify": "1"
+  }
+}

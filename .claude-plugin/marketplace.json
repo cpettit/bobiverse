@@ -1,0 +1,17 @@
+{
+  "name": "bobiverse",
+  "owner": { "name": "Chloe" },
+  "metadata": {
+    "description": "A crew of Claude Code agents, commands, and hooks modeled on the Bobiverse replicants.",
+    "pluginRoot": "./plugins"
+  },
+  "plugins": [
+    {
+      "name": "bobiverse",
+      "source": "./plugins/bobiverse",
+      "description": "Twenty Bobs, twelve commands, nine hooks. Bob orchestrates; Bill designs; Garfield builds; Homer breaks; Mario audits; Riker ships; Marvin objects; Howard explains. Busters, SUDDAR, and the Prime Directive make the safety rules real.",
+      "category": "productivity",
+      "tags": ["agents", "devsecops", "security", "orchestration", "hooks", "bobiverse"]
+    }
+  ]
+}

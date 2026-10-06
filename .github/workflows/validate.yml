@@ -1,0 +1,29 @@
+name: validate
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Validate marketplace + plugin
+        run: |
+          claude plugin validate .
+          claude plugin validate plugins/bobiverse
+      - name: Hook scripts compile and run against synthetic events
+        run: |
+          python3 -m py_compile plugins/bobiverse/hooks/scripts/*.py plugins/bobiverse/statusline/*.py
+          cd plugins/bobiverse/hooks/scripts
+          printf '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | python3 busters.py | grep -q '"deny"'
+          printf '{"tool_name":"Bash","tool_input":{"command":"terraform destroy"}}' | python3 busters.py | grep -q '"ask"'
+          printf '{"tool_name":"Bash","tool_input":{"command":"ls"}}' | python3 busters.py | test -z "$(cat)"
+          printf '{"tool_name":"Write","tool_input":{"file_path":"x/.env","content":"A=1"}}' | python3 suddar.py | grep -q '"deny"'
+          printf '{"tool_name":"Write","tool_input":{"file_path":"x.py","content":"k=\"AKIAQ3EGTR7Z2MPLN4XB\""}}' | python3 suddar.py | grep -q '"deny"'
+          printf '{"tool_name":"Edit","tool_input":{"file_path":".github/workflows/ci.yml"}}' | python3 prime_directive.py | grep -q '"ask"'
+          echo "hooks OK"
