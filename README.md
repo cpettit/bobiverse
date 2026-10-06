@@ -208,7 +208,7 @@ The plugin's detailed reference — every agent's prompt, every hook's config ke
 
 ## Contributing
 
-Agents are one markdown file each; the `description` field decides when Claude delegates. Hooks are one Python script each — `from bobnet import read_event, allow, pre_tool_decision, block, feedback` — wired in `hooks/hooks.json`. Test a hook with `printf '{"tool_name":"Bash","tool_input":{"command":"..."}}' | python3 hooks/scripts/yours.py`. CI runs `claude plugin validate` on both manifests and the hook smoke tests.
+Agents are one markdown file each; the `description` field decides when Claude delegates. Hooks are one Python script each — `from bobnet import read_event, allow, pre_tool_decision, block, feedback` — wired in `hooks/hooks.json`. After editing a hook, run `python3 hooks/scripts/selftest.py` — it exercises every hook against synthetic events and is what CI runs, alongside `claude plugin validate` on both manifests. Add a case there for any new behavior.
 
 Unclaimed Bobs, if you want to add one: Hal, Linus, Dexter, Loki, Bart.
 
