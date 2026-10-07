@@ -4,10 +4,16 @@ autofactory.py — PostToolUse(Write|Edit|MultiEdit).
 The printers run themselves: format + lint the file that was just touched, and
 feed any failures straight back to Claude (exit 2 → stderr becomes feedback).
 
-Only runs tools that are already installed in the project/environment. Never
-installs anything. Formatters write in place; linters report.
+Only runs tools that are already installed. Never installs anything.
+Policy: FORMATTERS run whenever the tool is present (formatting is the project's
+convention or nobody's). LINTERS run only when the PROJECT has configured that
+linter (ruff.toml / [tool.ruff], eslint config, .yamllint, …) — otherwise a global
+or default rule set gets imposed on code that never agreed to it, and the hook
+becomes noise. Compile-type checks (go vet, cargo check, terraform validate,
+shellcheck, hadolint) have no rule set to disagree about and always run.
 Config: .bobnet/autofactory.json → {"enabled": true, "format": true, "lint": true, "skip": [regex]}
 """
+
 import os
 import re
 import shutil
@@ -16,7 +22,23 @@ from pathlib import Path
 from bobnet import read_event, allow, feedback, load_config, marker, touch
 
 ev = read_event()
-cfg = load_config(ev, "autofactory", {"enabled": True, "format": True, "lint": True, "skip": [r"(^|/)node_modules/", r"(^|/)vendor/", r"(^|/)dist/", r"(^|/)build/", r"\.min\.(js|css)$", r"(^|/)\.bobnet/"]})
+cfg = load_config(
+    ev,
+    "autofactory",
+    {
+        "enabled": True,
+        "format": True,
+        "lint": True,
+        "skip": [
+            r"(^|/)node_modules/",
+            r"(^|/)vendor/",
+            r"(^|/)dist/",
+            r"(^|/)build/",
+            r"\.min\.(js|css)$",
+            r"(^|/)\.bobnet/",
+        ],
+    },
+)
 if not cfg.get("enabled", True):
     allow()
 
@@ -42,9 +64,19 @@ def has_file(*names):
     return any(Path(root, n).exists() for n in names)
 
 
+def project_has(filename, needle):
+    """True if <root>/<filename> exists and contains `needle`. Used to detect tool config sections."""
+    try:
+        return needle in Path(root, filename).read_text(errors="ignore")
+    except Exception:
+        return False
+
+
 def run(cmd, timeout=45):
     try:
-        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(
+            cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout
+        )
         return r.returncode, (r.stdout + r.stderr).strip()
     except subprocess.TimeoutExpired:
         return 124, f"timeout running {' '.join(cmd)}"
@@ -55,46 +87,93 @@ def run(cmd, timeout=45):
 formatters, linters = [], []
 
 if ext == ".py":
+    ruff_configured = has_file("ruff.toml", ".ruff.toml") or project_has("pyproject.toml", "[tool.ruff")
     if have("ruff"):
         formatters.append(["ruff", "format", path])
-        linters.append(["ruff", "check", path])
+        if ruff_configured:
+            linters.append(["ruff", "check", path])
     else:
-        if have("black"): formatters.append(["black", "-q", path])
-        if have("flake8"): linters.append(["flake8", path])
-    if have("mypy") and has_file("mypy.ini", "pyproject.toml", "setup.cfg"):
+        if have("black"):
+            formatters.append(["black", "-q", path])
+        if have("flake8") and (has_file(".flake8", "tox.ini") or project_has("setup.cfg", "[flake8]")):
+            linters.append(["flake8", path])
+    if have("mypy") and (has_file("mypy.ini", ".mypy.ini") or project_has("pyproject.toml", "[tool.mypy]") or project_has("setup.cfg", "[mypy")):
         linters.append(["mypy", "--no-error-summary", path])
 
-elif ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".json", ".css", ".scss", ".md", ".yaml", ".yml"):
-    if has_file("node_modules/.bin/prettier") or have("prettier"):
-        formatters.append(["npx", "--no-install", "prettier", "--write", "--log-level", "warn", path])
-    if ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs") and (has_file("node_modules/.bin/eslint") or have("eslint")):
-        linters.append(["npx", "--no-install", "eslint", "--no-warn-ignored", path])
-    if ext in (".ts", ".tsx") and has_file("tsconfig.json") and has_file("node_modules/.bin/tsc"):
-        linters.append(["npx", "--no-install", "tsc", "--noEmit", "-p", "tsconfig.json"])
+elif ext in (
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".cjs",
+    ".json",
+    ".css",
+    ".scss",
+    ".md",
+    ".yaml",
+    ".yml",
+):
+
+    def node_bin(name):
+        """Prefer the project's local binary; fall back to one on PATH. Never npx — it ignores PATH and may try to download."""
+        local = Path(root, "node_modules", ".bin", name)
+        if local.exists():
+            return str(local)
+        return have(name)
+
+    # Only run prettier on markdown/yaml if the project has opted in with a prettier config.
+    prettier_ok = ext not in (".md", ".yaml", ".yml") or has_file(
+        ".prettierrc",
+        ".prettierrc.json",
+        ".prettierrc.js",
+        ".prettierrc.yaml",
+        ".prettierrc.yml",
+        "prettier.config.js",
+        "prettier.config.mjs",
+    )
+    if prettier_ok and (p := node_bin("prettier")):
+        formatters.append([p, "--write", "--log-level", "warn", path])
+    eslint_configured = has_file("eslint.config.js", "eslint.config.mjs", "eslint.config.cjs", "eslint.config.ts",
+                                 ".eslintrc", ".eslintrc.js", ".eslintrc.cjs", ".eslintrc.json", ".eslintrc.yaml", ".eslintrc.yml") \
+        or project_has("package.json", '"eslintConfig"')
+    if ext in (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs") and eslint_configured and (e := node_bin("eslint")):
+        linters.append([e, "--no-warn-ignored", path])
+    if ext in (".ts", ".tsx") and has_file("tsconfig.json") and (t := node_bin("tsc")):
+        linters.append([t, "--noEmit", "-p", "tsconfig.json"])
 
 elif ext == ".go":
-    if have("gofmt"): formatters.append(["gofmt", "-w", path])
-    if have("go"): linters.append(["go", "vet", "./..."])
+    if have("gofmt"):
+        formatters.append(["gofmt", "-w", path])
+    if have("go"):
+        linters.append(["go", "vet", "./..."])
 
 elif ext == ".rs":
-    if have("rustfmt"): formatters.append(["rustfmt", path])
-    if have("cargo"): linters.append(["cargo", "check", "-q"])
+    if have("rustfmt"):
+        formatters.append(["rustfmt", path])
+    if have("cargo"):
+        linters.append(["cargo", "check", "-q"])
 
 elif ext in (".sh", ".bash"):
-    if have("shfmt"): formatters.append(["shfmt", "-w", path])
-    if have("shellcheck"): linters.append(["shellcheck", path])
+    if have("shfmt"):
+        formatters.append(["shfmt", "-w", path])
+    if have("shellcheck"):
+        linters.append(["shellcheck", path])
 
 elif ext == ".tf":
     if have("terraform"):
         formatters.append(["terraform", "fmt", path])
         linters.append(["terraform", "validate", "-no-color"])
-    if have("tflint"): linters.append(["tflint", "--filter", path])
+    if have("tflint"):
+        linters.append(["tflint", "--filter", path])
 
 elif ext in (".yaml", ".yml"):
-    if have("yamllint"): linters.append(["yamllint", "-f", "parsable", path])
+    if have("yamllint") and has_file(".yamllint", ".yamllint.yaml", ".yamllint.yml"):
+        linters.append(["yamllint", "-f", "parsable", path])
 
 elif ext == "" and Path(path).name == "Dockerfile" or ext == ".dockerfile":
-    if have("hadolint"): linters.append(["hadolint", path])
+    if have("hadolint"):
+        linters.append(["hadolint", path])
 
 problems = []
 if cfg.get("format", True):
@@ -109,6 +188,8 @@ if cfg.get("lint", True):
             problems.append(f"[lint] {' '.join(l[:2])}:\n{out[-1200:]}")
 
 if problems:
-    feedback("AUTOFACTORY: the printers flagged your last edit to "
-             f"`{path}`. Fix before moving on:\n\n" + "\n\n".join(problems))
+    feedback(
+        "AUTOFACTORY: the printers flagged your last edit to "
+        f"`{path}`. Fix before moving on:\n\n" + "\n\n".join(problems)
+    )
 allow()

@@ -24,10 +24,12 @@ Spawn the relevant Bobs **in parallel** using the Agent tool, each with the fram
 | security posture                     | `mario`     | a read-only sweep with evidence                 |
 | how an attacker would approach it    | `medeiros`  | an attack tree and top-3 paths                  |
 | deploy / rollback / incident risk    | `riker`     | preflight, rollback triggers, blast radius      |
+| cloud infra, Terraform, IAM          | `charles`   | a plan read as a blast-radius report            |
+| a risky change nobody wants to try   | `sandbox-bob` | a canary run in a throwaway worktree          |
 | is this a bad idea                   | `marvin`    | a pre-mortem with a verdict                     |
 | explaining it to humans              | `howard`    | the plain-language version and who needs it     |
 
-Default for an architecture/plan decision: **bill + marvin + homer + riker**, add `milo` first if the codebase is unfamiliar, add `mario`/`medeiros` if anything touches auth, data, or the network.
+Default for an architecture/plan decision: **bill + marvin + homer + riker**, add `milo` first if the codebase is unfamiliar, add `mario`/`medeiros` if anything touches auth, data, or the network, add `charles` if anything touches cloud resources or IaC.
 
 ## 3. Integrate
 When the Bobs report back:

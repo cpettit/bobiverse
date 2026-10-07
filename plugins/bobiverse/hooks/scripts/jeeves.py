@@ -90,6 +90,6 @@ if (bn / "busters.disarmed").exists():
         pass
 lines.append("")
 lines.append("Armed: " + " · ".join(armed))
-lines.append("Crew: /moot /suddar /framejack /expedition /preflight /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
+lines.append("Crew: /moot /suddar /terraplan /framejack /expedition /preflight /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
 
 context("\n".join(lines))

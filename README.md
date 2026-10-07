@@ -5,8 +5,8 @@
 A Claude Code plugin with three layers:
 
 - **Nine hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, and session memory that survives context compaction.
-- **Twenty agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
-- **Twelve commands** that chain them into workflows: a full security posture sweep, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
+- **Twenty-one agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
+- **Thirteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
 
 The Bobs are the fun part. The hooks are the reason to keep it installed.
 
@@ -30,7 +30,7 @@ BUSTERS armed: this command is destructive, irreversible, or production-flavored
 [Allow once] [Deny]
 ```
 
-Three tiers. **KILL** — `rm -rf /`, force-push to `main`/`prod`, `mkfs`, `dd` to a device, fork bombs — is denied unconditionally and cannot be disarmed. **ASK** — recursive or forced `rm`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, `terraform destroy`, `kubectl delete`, `docker system prune`, cloud `delete`/`terminate`, package publish, anything with `prod` near a deploy verb — forces a permission prompt **even in auto-accept mode**. Everything else passes. `/disarm 15 <reason>` lowers the ASK tier for a window; it requires a reason, logs it, and leaves KILL active.
+Three tiers. **KILL** — `rm -rf /`, force-push to `main`/`prod`, `mkfs`, `dd` to a device, fork bombs — is denied unconditionally and cannot be disarmed. **ASK** — recursive or forced `rm`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, `terraform apply`/`destroy` and all state surgery (`state rm`/`mv`, `import`, `force-unlock`), `kubectl delete`, `docker system prune`, cloud `delete`/`terminate`, package publish, anything with `prod` near a deploy verb, **and privilege grants** — `az role assignment create`, `aws iam attach-role-policy`, `create-access-key`, cluster-admin bindings — forces a permission prompt **even in auto-accept mode**. A grant of privilege weighs the same as a delete. Everything else passes. `/disarm 15 <reason>` lowers the ASK tier for a window; it requires a reason, logs it, and leaves KILL active.
 
 ### SUDDAR — the secret scanner
 
@@ -51,7 +51,7 @@ A permission prompt on edits to CI workflows, production infrastructure, IAM/RBA
 
 | Hook | Event | What it does |
 |---|---|---|
-| **Autofactory** | after every edit | Runs the formatter and linter already installed for that file type (ruff, prettier, eslint, tsc, gofmt, rustfmt, shellcheck, terraform fmt, …). Failures go straight back to Claude. Never installs anything. |
+| **Autofactory** | after every edit | Runs the formatter already installed for that file type (ruff, prettier, gofmt, rustfmt, shfmt, terraform fmt, …), and the linter **only if the project has configured it** (`ruff.toml`, an eslint config, `.yamllint`) — so nobody's global rule set gets imposed on code that didn't ask for it. Failures go straight back to Claude. Never installs anything. |
 | **Replicative drift** | subagent finishes | Blocks a subagent's first stop and makes it append a `DRIFT CHECK`: requirements addressed, missed, and anything it did outside the assignment. |
 | **Mission brief** | first prompt + after compaction | Saves your original ask verbatim; re-injects it after context compaction so the success criteria survive the summary. |
 | **Jeeves** | session start | Situational brief: branch, dirty files, recent commits, active worktrees, last three journal entries, open TODOs, which hooks are armed. |
@@ -76,7 +76,8 @@ Twenty subagents. The character isn't decoration — it's the behavioral spec, a
 | 🎯 | **medeiros** | Red team. Attack trees and abuse cases for Mario to verify. Never produces exploits. | no |
 | 🔧 | **garfield** | Implementation from spec. Smallest correct change, matches the codebase. | yes |
 | ⚡ | **neil** / **herschel** | Same spec, two independent implementations — minimal vs. robust — in separate worktrees. Homer and Marvin pick. | worktree only |
-| 🐤 | **charles** | The canary. Tries the risky change in a disposable worktree first and reports whether he survived. | worktree only |
+| 🐤 | **sandbox-bob** | The canary. Tries the risky change in a disposable worktree first and reports whether he survived. | worktree only |
+| 🌍 | **charles** | Cloud infrastructure & IaC — Terraform/OpenTofu, Azure, AWS, IAM/Entra, drift. Reads every plan as a blast-radius report. Never applies. | HCL only; no apply |
 | 🤖 | **roamer** | Bulk mechanical edits. Haiku, parallel, no judgment, no scope creep. | yes |
 | 🍩 | **homer** | Testing, QA, chaos engineering. Assumes everything is broken and finds out how. | yes |
 | 🪐 | **marvin** | Pre-mortems. Steelman → fatal → must-fix → unstated assumptions → verdict. | no |
@@ -97,6 +98,7 @@ Claude delegates to them automatically based on the task, or you can call them b
 | Command | Flow |
 |---|---|
 | `/suddar <scope>` | Full posture sweep. Milo maps → Medeiros attacks → Mario verifies → Howard writes it up mapped to controls. Read-only. |
+| `/terraplan [dir]` | Charles plans (or reads your plan) and reports blast radius: every destroy and replace explained, every privilege grant and public exposure called out, cost delta if infracost is present. `--drift` for refresh-only. Never applies. |
 | `/framejack <problem>` | Deep-think planning. Bill designs, Marvin pre-mortems, you get a plan with the holes already found. Executes nothing until you say **go**. |
 | `/preflight <target>` | Riker's deploy checklist. Rollback triggers defined *before* the deploy. GO / NO-GO. |
 | `/postmortem <incident>` | Riker reconstructs the timeline from evidence; Howard writes the blameless doc. |
@@ -194,8 +196,8 @@ This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/
 .claude-plugin/marketplace.json     the marketplace manifest
 plugins/bobiverse/                  the plugin
   .claude-plugin/plugin.json
-  agents/        20 subagent definitions
-  commands/      12 slash commands
+  agents/        21 subagent definitions
+  commands/      13 slash commands
   hooks/         hooks.json + scripts/ (bobnet.py is the shared parser)
   output-styles/ bob.md
   statusline/    bobs-log.py

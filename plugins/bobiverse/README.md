@@ -1,12 +1,12 @@
 # Bobiverse — a crew for Claude Code
 
-A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty agents, twelve commands, nine hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
+A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-one agents, thirteen commands, nine hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
 
 ```
 bobiverse/
 ├── .claude-plugin/plugin.json
-├── agents/          20 subagents
-├── commands/        12 slash commands
+├── agents/          21 subagents
+├── commands/        13 slash commands
 ├── hooks/           hooks.json + 9 Python hook scripts (stdlib only)
 ├── output-styles/   bob.md — main thread in Bob's voice
 ├── statusline/      bobs-log.py
@@ -50,7 +50,8 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | `medeiros` | The Brazilian probe (under truce) | Red-team threat modeling, attack trees | no |
 | `garfield` | Bill's lab partner | Implementation | yes |
 | `neil` / `herschel` | The Thor crew | Paired implementers: minimal vs. robust, same spec, separate worktrees | yes (worktree) |
-| `charles` | Died first at Alpha Centauri | Canary — tries risky changes in a disposable worktree | yes (worktree) |
+| `sandbox-bob` | The air-gapped Bob for dangerous data | Canary — tries risky changes in a disposable worktree | yes (worktree) |
+| `charles` | Leads Reclamation, terraforming Sol | Cloud infrastructure & IaC — Terraform/OpenTofu, Azure, AWS, IAM/Entra, drift; reads plans as blast-radius reports; never applies | HCL yes; apply never |
 | `roamer` | Grunt-work drones | Bulk mechanical edits, Haiku, parallel | yes |
 | `homer` | The clown who held the line | Testing, QA, chaos engineering | yes |
 | `marvin` | The Paranoid Android | Pre-mortems, critical review | no |
@@ -70,6 +71,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 |---|---|
 | `/moot <question>` | Bob frames it, spawns the relevant Bobs in parallel, integrates, records dissent |
 | `/suddar <scope>` | Full posture sweep: Milo maps → Medeiros attacks → Mario verifies → Howard writes it up mapped to SOC 2 / CIS / NIST |
+| `/terraplan [dir]` | Charles turns a Terraform plan into a blast-radius report — destroys/replaces explained, privilege grants and exposure flagged, cost delta; `--drift` for refresh-only; never applies |
 | `/framejack <problem>` | Deep-think planning. Bill designs, Marvin pre-mortems, you get a plan. Executes nothing until you say **go** |
 | `/replicate <N> <task>` | Fan out to N Garfields (or `--roamers`) in worktrees, merge, Homer checks the result |
 | `/expedition [path]` | Milo surveys an unfamiliar repo → `EXPEDITION.md` with hazards |
@@ -85,10 +87,10 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 
 | Hook | Event | Behavior |
 |---|---|---|
-| **Busters** | `PreToolUse` Bash | Three tiers. **KILL** (`rm -rf /`, force-push to main/prod, `mkfs`, `dd` to a device, fork bomb) → denied, cannot be disarmed. **ASK** (recursive/forced `rm`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, `terraform destroy`, `kubectl delete`, docker prune, cloud `delete`, publish, anything prod-flavored) → forces a permission prompt even in auto-accept mode. Everything else → allowed. |
+| **Busters** | `PreToolUse` Bash | Three tiers. **KILL** (`rm -rf /`, force-push to main/prod, `mkfs`, `dd` to a device, fork bomb) → denied, cannot be disarmed. **ASK** (recursive/forced `rm`, `DROP`/`TRUNCATE`, `DELETE` without `WHERE`, `terraform apply`/`destroy`/state surgery/`import`, `kubectl delete`, docker prune, cloud `delete`, publish, anything prod-flavored, and privilege grants — `az role assignment create`, `aws iam attach-*-policy`, `create-access-key`, cluster-admin bindings) → forces a permission prompt even in auto-accept mode. Everything else → allowed. |
 | **SUDDAR** | `PreToolUse` Write/Edit, `git commit` | Denies writes containing credential-shaped strings (AWS/GitHub/Slack/Stripe/OpenAI keys, private key blocks, JWTs, DB URLs with passwords, generic `password=`/`api_key=`) and writes to secret-bearing paths (`.env`, `*.pem`, `id_rsa`, kubeconfig, tfstate…). Tolerates placeholders. Runs `gitleaks`/`trufflehog` on staged changes at commit if installed. |
 | **Prime Directive** | `PreToolUse` Write/Edit/Bash | Protected zones → permission prompt: CI workflows, prod infra, IAM/RBAC, migrations, Dockerfiles, lockfiles, CODEOWNERS, the hooks' own config. `.git/config` and friends → denied outright. |
-| **Autofactory** | `PostToolUse` Write/Edit | Runs the formatter and linter already installed for the file type (ruff/black, prettier/eslint/tsc, gofmt/vet, rustfmt, shfmt/shellcheck, terraform fmt/validate, yamllint, hadolint). Failures go straight back to Claude as feedback. |
+| **Autofactory** | `PostToolUse` Write/Edit | Runs the formatter already installed for the file type (ruff/black, prettier, gofmt, rustfmt, shfmt, terraform fmt). Runs the linter **only when the project has configured it** (`ruff.toml`/`[tool.ruff]`, eslint config, `.yamllint`); compile-style checks with no rule set to argue about (go vet, cargo check, terraform validate, shellcheck, hadolint, tsc) always run. Failures go straight back to Claude as feedback. |
 | **Replicative drift** | `SubagentStop` | Blocks a subagent's first stop and makes it append a `DRIFT CHECK` — requirements addressed / missed / out-of-scope work — so Bob integrates correctly. |
 | **Jeeves** | `SessionStart` | Situational brief: branch, dirty files, recent commits, worktrees, last 3 journal entries, Bender research in progress, TODO count, which hooks are armed. |
 | **Mission brief** | `UserPromptSubmit` + `SessionStart(compact)` | Saves the first prompt of the session verbatim; re-injects it after context compaction so the original success criteria survive the summary. |
@@ -136,7 +138,7 @@ The script runs `claude -p "/others-watch"` per repo with `--allowedTools` restr
 
 **Tool restrictions enforce character.** Read-only Bobs (Bill, Mario, Marvin, Milo, Medeiros, Hugh, Archimedes) can't `Edit` or `Write`. A security auditor who can't remediate can't tamper with evidence; a reviewer who can't edit has to make his case in words.
 
-**Worktree isolation enforces independence.** Charles, Neil, and Herschel each run in their own worktree. The canary can't hurt your branch; the Thor pair can't peek at each other's answer.
+**Worktree isolation enforces independence.** Sandbox-Bob, Neil, and Herschel each run in their own worktree. The canary can't hurt your branch; the Thor pair can't peek at each other's answer.
 
 **Hooks fail open, agents fail closed.** A crashed hook script exits non-zero and Claude Code skips it — work continues. An agent that can't verify something says so and stops. That's the right asymmetry: tooling bugs shouldn't block you; uncertainty should.
 

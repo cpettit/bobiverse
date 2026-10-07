@@ -12,6 +12,7 @@ Disarm the ASK tier for a window with `/disarm` (writes .bobnet/busters.disarmed
 with an expiry). KILL tier cannot be disarmed.
 Config overrides: .bobnet/busters.json → {"ask_extra": [...regex], "allow": [...regex]}
 """
+
 import re
 import time
 from bobnet import read_event, pre_tool_decision, allow, bobnet_dir, load_config
@@ -36,10 +37,11 @@ KILL = [
 
 ASK = [
     # filesystem
-    r"\brm\s+-[a-zA-Z]*r",            # any recursive rm
-    r"\brm\s+-[a-zA-Z]*f",            # any forced rm
+    r"\brm\s+-[a-zA-Z]*r",  # any recursive rm
+    r"\brm\s+-[a-zA-Z]*f",  # any forced rm
     r"\bfind\b.*-delete\b",
-    r"\bshred\b", r"\btruncate\b",
+    r"\bshred\b",
+    r"\btruncate\b",
     # git history / remote
     r"\bgit\s+push\b.*(--force|-f\b|\+\w)",
     r"\bgit\s+(reset\s+--hard|clean\s+-[a-zA-Z]*f|branch\s+-D|checkout\s+--\s+\.)",
@@ -47,12 +49,26 @@ ASK = [
     r"\bgit\s+filter-(branch|repo)\b",
     # databases
     r"\b(DROP|TRUNCATE)\s+(TABLE|DATABASE|SCHEMA|INDEX)\b",
-    r"\bDELETE\s+FROM\b(?![^;]*\bWHERE\b)",   # DELETE without WHERE
+    r"\bDELETE\s+FROM\b(?![^;]*\bWHERE\b)",  # DELETE without WHERE
     r"\bUPDATE\s+\w+\s+SET\b(?![^;]*\bWHERE\b)",
     r"\b(psql|mysql|sqlite3|mongo(sh)?)\b.*\b(drop|truncate)\b",
-    # infra / cloud
-    r"\bterraform\s+(destroy|apply\s+.*-auto-approve)",
-    r"\bpulumi\s+(destroy|up\s+.*--yes)",
+    # infra / IaC — apply is always a human decision; state surgery doubly so (Charles's rules)
+    r"\b(terraform|tofu)\s+(destroy|apply)\b",
+    r"\b(terraform|tofu)\s+state\s+(rm|mv|push|replace-provider)\b",
+    r"\b(terraform|tofu)\s+(import|force-unlock|taint|untaint)\b",
+    r"\b(terraform|tofu)\s+workspace\s+delete\b",
+    r"\bpulumi\s+(destroy|up|refresh\s+.*--yes|state\s+(delete|unprotect))",
+    r"\bcdk\s+(deploy|destroy)\b",
+    r"\baws\s+cloudformation\s+(deploy|delete-stack|update-stack|create-stack)\b",
+    r"\baz\s+(deployment|stack)\s+\S+\s+(create|delete|what-if\s+.*--confirm)",
+    r"\baz\s+group\s+delete\b",
+    # privilege grants weigh the same as deletes
+    r"\baz\s+(role\s+assignment\s+create|ad\s+(app|sp)\s+credential\s+reset|keyvault\s+set-policy)\b",
+    r"\baws\s+iam\s+(attach|put)-(role|user|group)-policy\b",
+    r"\baws\s+iam\s+(create-access-key|create-policy-version|update-assume-role-policy|add-user-to-group)\b",
+    r"\baws\s+(kms\s+put-key-policy|s3api\s+put-bucket-policy|s3api\s+put-public-access-block|sts\s+assume-role)\b",
+    r"\bgcloud\s+(projects|iam)\s+.*add-iam-policy-binding\b",
+    r"\bkubectl\s+(create|apply)\b.*\b(clusterrolebinding|rolebinding)\b",
     r"\bkubectl\s+(delete|drain|cordon|replace\s+--force)",
     r"\bhelm\s+(uninstall|delete|rollback)\b",
     r"\bdocker\s+(system\s+prune|volume\s+(rm|prune)|rmi|container\s+prune)",
@@ -75,14 +91,24 @@ ASK = [
     r"\bsudo\s+(rm|dd|mkfs|chmod|chown|systemctl|shutdown|reboot)\b",
     r"\b(shutdown|reboot|halt|poweroff)\b",
     r"\bcrontab\s+-r\b",
-    r"\bchown\s+-R\b", r"\bchmod\s+-R\b",
+    r"\bchown\s+-R\b",
+    r"\bchmod\s+-R\b",
 ]
 
 cfg = load_config(ev, "busters", {"ask_extra": [], "allow": []})
 ASK += cfg.get("ask_extra", [])
 ALLOWLIST = cfg.get("allow", [])
 
-flat = " ".join(cmd.split())
+# Split heredoc bodies out of the command. Text fed to a heredoc is usually DATA
+# (a file being written, a script's string literals), so a KILL pattern found only
+# there is downgraded to ASK — the human still sees it, but a README that mentions
+# `mkfs` doesn't get hard-denied. Everything outside heredocs is matched as-is.
+HEREDOC = re.compile(r"<<-?\s*['\"]?(\w+)['\"]?[^\n]*\n(.*?)\n\s*\1\s*(?:\n|$)", re.S)
+heredoc_bodies = [m.group(2) for m in HEREDOC.finditer(cmd)]
+command_only = HEREDOC.sub(" <<HEREDOC_BODY_REMOVED ", cmd)
+
+flat = " ".join(command_only.split())
+flat_data = " ".join(" ".join(heredoc_bodies).split())
 
 for pat in ALLOWLIST:
     if re.search(pat, flat, re.I):
@@ -90,10 +116,20 @@ for pat in ALLOWLIST:
 
 for pat in KILL:
     if re.search(pat, flat, re.I):
-        pre_tool_decision("deny",
+        pre_tool_decision(
+            "deny",
             "BUSTERS: catastrophic command pattern — denied unconditionally. "
             f"Matched /{pat}/. This tier cannot be disarmed. If you really mean this, "
-            "the human runs it by hand outside Claude.")
+            "the human runs it by hand outside Claude.",
+        )
+for pat in KILL:
+    if flat_data and re.search(pat, flat_data, re.I):
+        pre_tool_decision(
+            "ask",
+            f"BUSTERS: a catastrophic pattern (/{pat}/) appears inside heredoc CONTENT, not the command itself. "
+            "That's usually data (a file being written, a script's strings) — but if this heredoc is piped to a shell "
+            "or interpreter, it will execute. Read the heredoc before approving.",
+        )
 
 # Disarm window check
 disarm = bobnet_dir(ev) / "busters.disarmed"
@@ -108,9 +144,11 @@ except Exception:
 
 for pat in ASK:
     if re.search(pat, flat, re.I):
-        pre_tool_decision("ask",
+        pre_tool_decision(
+            "ask",
             "BUSTERS armed: this command is destructive, irreversible, or production-flavored "
             f"(matched /{pat}/). Riker's rule: explicit confirmation required. "
-            "Review the exact command before approving. To skip these prompts for 15 min, run /disarm.")
+            "Review the exact command before approving. To skip these prompts for 15 min, run /disarm.",
+        )
 
 allow()
