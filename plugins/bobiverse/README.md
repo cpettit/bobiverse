@@ -1,13 +1,13 @@
 # Bobiverse — a crew for Claude Code
 
-A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-one agents, thirteen commands, nine hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
+A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-two agents, fourteen commands, ten hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
 
 ```
 bobiverse/
 ├── .claude-plugin/plugin.json
-├── agents/          21 subagents
-├── commands/        13 slash commands
-├── hooks/           hooks.json + 9 Python hook scripts (stdlib only)
+├── agents/          22 subagents
+├── commands/        14 slash commands
+├── hooks/           hooks.json + 10 Python hook scripts (stdlib only)
 ├── output-styles/   bob.md — main thread in Bob's voice
 ├── statusline/      bobs-log.py
 └── scripts/         others-watch.sh (scheduler), bobnet-config.example.json
@@ -62,6 +62,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | `archimedes` | Bob's Deltan protégé | Teaching, onboarding, learning paths | no |
 | `manny` | Howard's android | Browser / desktop-app actions; stops before anything irreversible | real world |
 | `guppy` | The ship AI | Literal, exact command execution, Haiku | yes |
+| `thoth` | The Skippies' oracle, kept in a box | One hard question at a time on the most capable model at max effort; answers only — no edits, no commands, no other Bobs; permission-gated for cost | no |
 
 \* with explicit confirmation before anything destructive or production-affecting — and Busters enforces it.
 
@@ -79,6 +80,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | `/postmortem <incident>` | Riker reconstructs the timeline from evidence, Howard writes the blameless doc |
 | `/drift [spec]` | Compare the work to the original ask. Done / partial / missing / drift |
 | `/uplift <code>` | Archimedes builds a learning path for someone new to it |
+| `/thoth <question>` | Bob checks it's a thinking question not a looking one, sharpens it, spawns Thoth (Oracle Gate prompts for cost), relays the answer with its uncertainty sections intact |
 | `/log [note]` | Append to the Bobnet journal |
 | `/disarm [min] <reason>` | Lower Busters' ASK tier for a window. Requires a reason and the word **disarm** |
 | `/others-watch` | Unattended CVE / IaC / secret / Actions-pinning sweep → `.bobnet/others-watch/<date>.md`, pings on High+ |
@@ -95,6 +97,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | **Jeeves** | `SessionStart` | Situational brief: branch, dirty files, recent commits, worktrees, last 3 journal entries, Bender research in progress, TODO count, which hooks are armed. |
 | **Mission brief** | `UserPromptSubmit` + `SessionStart(compact)` | Saves the first prompt of the session verbatim; re-injects it after context compaction so the original success criteria survive the summary. |
 | **Bobnet log** | `Stop` | If the session changed anything and no journal entry was written, blocks once and asks for a 10-line "Bob's log" entry in `.bobnet/journal.md`. Never nags twice. |
+| **Oracle Gate** | `PreToolUse` Agent | Forces a permission prompt before any agent on the gated list (default: `thoth`) is spawned, even in auto-accept mode. Launching the expensive one is a human decision. `.bobnet/oracle-gate.json` → `{"ask_agents": [...]}`. |
 | **SCUT** | `Notification`, `Stop` | Pushes to ntfy / Slack / Discord webhook when Claude is waiting on you or a long session finishes. Silent unless `SCUT_NTFY_URL` or `SCUT_WEBHOOK_URL` is set. |
 
 Every hook is a standalone Python script in `hooks/scripts/`; `bobnet.py` is the shared parser so field-name changes in Claude Code's hook JSON only need fixing in one place. All hooks fail **open** on their own errors (a broken hook never blocks work) except where the whole point is to block.

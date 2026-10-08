@@ -227,6 +227,20 @@ with tempfile.TemporaryDirectory() as proj:
             want,
         )
 
+    print("oracle gate")
+    def agent(sub_type, desc="q"):
+        return {"session_id": "t", "tool_name": "Agent", "tool_input": {"subagent_type": sub_type, "description": desc, "prompt": "..."}}
+    check("oracle: spawn thoth → ask", decision(run("oracle_gate.py", agent("thoth"), project=P)[1]), "ask")
+    check("oracle: spawn bobiverse:thoth → ask", decision(run("oracle_gate.py", agent("bobiverse:thoth"), project=P)[1]), "ask")
+    check("oracle: spawn garfield → allow", decision(run("oracle_gate.py", agent("bobiverse:garfield"), project=P)[1]), "allow")
+    check("oracle: legacy Task tool name → ask",
+          decision(run("oracle_gate.py", {"tool_name": "Task", "tool_input": {"subagent_type": "thoth"}}, project=P)[1]), "ask")
+    check("oracle: non-agent tool → allow", decision(run("oracle_gate.py", bash("ls"), project=P)[1]), "allow")
+    Path(P, ".bobnet").mkdir(exist_ok=True)
+    Path(P, ".bobnet", "oracle-gate.json").write_text('{"ask_agents": ["thoth", "bender"]}')
+    check("oracle: config adds bender → ask", decision(run("oracle_gate.py", agent("bender"), project=P)[1]), "ask")
+    Path(P, ".bobnet", "oracle-gate.json").unlink()
+
     print("session flow")
     sid = "s1"
     run(

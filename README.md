@@ -4,9 +4,9 @@
 
 A Claude Code plugin with three layers:
 
-- **Nine hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, and session memory that survives context compaction.
-- **Twenty-one agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
-- **Thirteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
+- **Ten hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, a cost gate on the expensive agent, and session memory that survives context compaction.
+- **Twenty-two agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
+- **Fourteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
 
 The Bobs are the fun part. The hooks are the reason to keep it installed.
 
@@ -56,6 +56,7 @@ A permission prompt on edits to CI workflows, production infrastructure, IAM/RBA
 | **Mission brief** | first prompt + after compaction | Saves your original ask verbatim; re-injects it after context compaction so the success criteria survive the summary. |
 | **Jeeves** | session start | Situational brief: branch, dirty files, recent commits, active worktrees, last three journal entries, open TODOs, which hooks are armed. |
 | **Bobnet log** | session end | If the session changed anything, asks once for a ten-line journal entry in `.bobnet/journal.md`. Cross-session memory the next Jeeves reads. |
+| **Oracle Gate** | before spawning an agent | Forces a permission prompt before Thoth (or any agent you list) is launched, even in auto-accept mode. The expensive agent is a human decision every time. |
 | **SCUT** | needs input / finished | Pushes to ntfy, Slack, or Discord when Claude is waiting on you or a long session ends. Silent unless configured. |
 
 All hooks are stdlib-only Python and **fail open** — a crashed hook never blocks your work. Each has a `.bobnet/<name>.json` override; see [Turning things down](#turning-things-down).
@@ -88,6 +89,7 @@ Twenty subagents. The character isn't decoration — it's the behavioral spec, a
 | 🎓 | **archimedes** | Teaching. Learning paths, not reference docs. | no |
 | 🖱️ | **manny** | Browser and desktop-app actions. Narrates every click; stops before anything irreversible. | real world |
 | 🖥️ | **guppy** | Literal command execution. No interpretation, no initiative, no personality. Haiku. | yes |
+| 🔮 | **thoth** | The oracle. One hard question on the most capable model at maximum effort. Answers only — never edits, never runs anything, never directs the crew. Permission-gated for cost. | no |
 
 Claude delegates to them automatically based on the task, or you can call them by name: *"have milo map how a request reaches the database"*, *"ask marvin whether this migration plan is a bad idea."*
 
@@ -108,6 +110,7 @@ Claude delegates to them automatically based on the task, or you can call them b
 | `/drift [spec]` | Compare the work to the original ask: done / partial / missing / drift. |
 | `/uplift <code>` | Archimedes builds a learning path for someone new to it. |
 | `/others-watch` | Unattended CVE / IaC / secret / Actions-pinning sweep. Designed for cron. Pings only on High+. |
+| `/thoth <question>` | One hard question to the oracle. Bob checks it's a *thinking* question rather than a *looking* one, sharpens it, and relays the answer with its uncertainty intact. Gated. |
 | `/log [note]` | Append to the Bobnet journal. |
 | `/disarm [min] <reason>` | Lower Busters' ASK tier for a window. Requires a reason and the word **disarm**. |
 
@@ -184,6 +187,8 @@ To remove a hook entirely, delete its entry from `plugins/bobiverse/hooks/hooks.
 
 **Medeiros is a framing, not an exploit generator.** He produces attack paths and vulnerability classes so Mario has hypotheses to test. He's forbidden from producing anything runnable and from modeling attacks on named individuals.
 
+**The oracle is in a box, and the box is enforced.** Thoth has no `Edit`, `Write`, `Bash`, or `Agent` tool — it cannot act or delegate — and the Oracle Gate hook makes every launch a human decision. Power without reach, by construction.
+
 **Memory is a file you can read.** `.bobnet/journal.md` is a decision log that writes itself. It's plain markdown, it's committed, and it's useful to humans on the team too.
 
 ---
@@ -196,8 +201,8 @@ This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/
 .claude-plugin/marketplace.json     the marketplace manifest
 plugins/bobiverse/                  the plugin
   .claude-plugin/plugin.json
-  agents/        21 subagent definitions
-  commands/      13 slash commands
+  agents/        22 subagent definitions
+  commands/      14 slash commands
   hooks/         hooks.json + scripts/ (bobnet.py is the shared parser)
   output-styles/ bob.md
   statusline/    bobs-log.py

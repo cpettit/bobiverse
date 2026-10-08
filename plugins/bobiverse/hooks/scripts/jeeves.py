@@ -80,7 +80,7 @@ if todo and todo != "0":
     lines.append(f"Open TODO/FIXME/HACK markers in tree: {todo}")
 
 # Hooks armed
-armed = ["Busters (destructive-command gate)", "SUDDAR (secret scan)", "Prime Directive (protected paths)"]
+armed = ["Busters (destructive-command gate)", "SUDDAR (secret scan)", "Prime Directive (protected paths)", "Oracle Gate (Thoth asks first)"]
 if (bn / "busters.disarmed").exists():
     try:
         exp = float((bn / "busters.disarmed").read_text().strip())
@@ -90,6 +90,6 @@ if (bn / "busters.disarmed").exists():
         pass
 lines.append("")
 lines.append("Armed: " + " · ".join(armed))
-lines.append("Crew: /moot /suddar /terraplan /framejack /expedition /preflight /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
+lines.append("Crew: /moot /suddar /terraplan /thoth /framejack /expedition /preflight /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
 
 context("\n".join(lines))

@@ -29,6 +29,8 @@ Spawn the relevant Bobs **in parallel** using the Agent tool, each with the fram
 | is this a bad idea                   | `marvin`    | a pre-mortem with a verdict                     |
 | explaining it to humans              | `howard`    | the plain-language version and who needs it     |
 
+Thoth is **not** on this table on purpose. A moot is the crew thinking in parallel; Thoth is one mind thinking hard, and it costs accordingly. If the moot ends deadlocked on a single sharp question, say so and let the human decide whether to `/thoth` it.
+
 Default for an architecture/plan decision: **bill + marvin + homer + riker**, add `milo` first if the codebase is unfamiliar, add `mario`/`medeiros` if anything touches auth, data, or the network, add `charles` if anything touches cloud resources or IaC.
 
 ## 3. Integrate
