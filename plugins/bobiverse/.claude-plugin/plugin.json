@@ -1,6 +1,6 @@
 {
   "name": "bobiverse",
-  "version": "0.3.2",
+  "version": "0.3.4",
   "description": "A crew of Claude Code subagents, commands, and hooks modeled on the Bobiverse replicants. Bob orchestrates; Bill designs; Garfield builds; Homer breaks; Mario audits; Riker ships; Marvin objects; Howard explains. Hooks make the safety rules real.",
   "author": { "name": "Chloe" },
   "keywords": ["agents", "devsecops", "security", "orchestration", "bobiverse"]

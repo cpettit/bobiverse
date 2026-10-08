@@ -17,3 +17,9 @@
 - Decided: separate optional plugin, not part of bobiverse core. Observer hooks fail open via `.catch` → `next(e)`. Idle sentinel is `null` (state must be JSON; `undefined` silently broke adjourn — caught by the test).
 - Open: neither smoke-test Bob wrote a DRIFT CHECK → drift hook likely not firing under the synced 0.2.0 copy; recheck after re-sync. Mario: README SUDDAR demo key trips external scanners — build the string split, not EXAMPLE (SUDDAR allows EXAMPLE). Milo: safety hooks fail open on unparsable input — Chloe to decide fail-closed for Busters/SUDDAR/Prime. Mod TODOs: gate counters, auto-close, tick, starmap. Tags still unpushed.
 - Bobs: milo, mario (smoke test)
+
+## 2026-10-08 15:28 — v0.3.4: version bump
+- Did: bobiverse plugin.json 0.3.2 → 0.3.4 (0.3.3 skipped at Chloe's call; the Moot Hall pane fallback shipped as bobnet-display 0.1.1 in 696fde1).
+- Decided: none
+- Open: retest Moot Hall auto-open/status line after reload; tags v0.2.0–v0.3.4 still to push from a local clone.
+- Bobs: solo
