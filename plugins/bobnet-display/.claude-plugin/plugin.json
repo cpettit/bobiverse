@@ -1,0 +1,9 @@
+{
+  "name": "bobnet-display",
+  "version": "0.1.0",
+  "description": "Moot Hall: a live Bobnet relay display that opens when the crew is running and folds away when the last Bob reports.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Chloe"
+  }
+}

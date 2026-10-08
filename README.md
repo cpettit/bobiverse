@@ -13,6 +13,7 @@ The Bobs are the fun part. The hooks are the reason to keep it installed.
 ```
 /plugin marketplace add cpettit/bobiverse
 /plugin install bobiverse@bobiverse
+/plugin install bobnet-display@bobiverse   # optional: the Moot Hall live display
 ```
 
 ---
@@ -116,6 +117,16 @@ Claude delegates to them automatically based on the task, or you can call them b
 
 ---
 
+## Moot Hall — the live display
+
+An optional companion mod, `bobnet-display`. When two or more Bobs are running at once — a `/moot`, `/replicate`, or `/suddar` fan-out — a pane opens on its own: one row per Bob with status, an activity bar, op count, last tool and elapsed time; a SCUT traffic log of spawns, tool calls, blocks and reports; and a sealed vault card whenever Thoth is consulting. `/bobnet` opens it by hand. Its hooks are pure observers with a fail-open `.catch`, so a display bug can never block or re-run a Bob's action. Design notes and the roadmap (gate counters, auto-close, starmap) are in [`plugins/bobnet-display/DESIGN.md`](plugins/bobnet-display/DESIGN.md).
+
+```
+/plugin install bobnet-display@bobiverse
+```
+
+---
+
 ## Install
 
 ```
@@ -195,7 +206,7 @@ To remove a hook entirely, delete its entry from `plugins/bobiverse/hooks/hooks.
 
 ## Repository layout
 
-This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) hosting one plugin.
+This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) hosting two plugins: the crew, and the Moot Hall display mod.
 
 ```
 .claude-plugin/marketplace.json     the marketplace manifest
@@ -208,7 +219,9 @@ plugins/bobiverse/                  the plugin
   statusline/    bobs-log.py
   scripts/       others-watch.sh, bobnet-config.example.json
   README.md      full reference
-.github/workflows/validate.yml      CI: validates both manifests, smoke-tests the hooks
+plugins/bobnet-display/             the Moot Hall mod
+  hooks/register.tsx  types/  tests/  DESIGN.md
+.github/workflows/validate.yml      CI: validates all manifests, hook self-tests, mod tests
 ```
 
 The plugin's detailed reference — every agent's prompt, every hook's config keys — is in [`plugins/bobiverse/README.md`](plugins/bobiverse/README.md).

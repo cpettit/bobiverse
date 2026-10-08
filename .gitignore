@@ -3,3 +3,5 @@ __pycache__/
 .bobnet/*.marker
 .bobnet/mission-*.md
 .bobnet/busters.disarmed
+# engine-generated mod types (laid when a mod loads)
+plugins/*/.claude-plugin/types/

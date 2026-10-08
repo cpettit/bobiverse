@@ -1,6 +1,8 @@
 {
   "name": "bobiverse",
-  "owner": { "name": "Chloe" },
+  "owner": {
+    "name": "Chloe"
+  },
   "metadata": {
     "description": "A crew of Claude Code agents, commands, and hooks modeled on the Bobiverse replicants.",
     "pluginRoot": "./plugins"
@@ -11,7 +13,27 @@
       "source": "./plugins/bobiverse",
       "description": "Twenty Bobs, twelve commands, nine hooks. Bob orchestrates; Bill designs; Garfield builds; Homer breaks; Mario audits; Riker ships; Marvin objects; Howard explains. Busters, SUDDAR, and the Prime Directive make the safety rules real.",
       "category": "productivity",
-      "tags": ["agents", "devsecops", "security", "orchestration", "hooks", "bobiverse"]
+      "tags": [
+        "agents",
+        "devsecops",
+        "security",
+        "orchestration",
+        "hooks",
+        "bobiverse"
+      ]
+    },
+    {
+      "name": "bobnet-display",
+      "source": "./plugins/bobnet-display",
+      "description": "BOBNET \u00b7 Moot Hall \u2014 a live relay display that opens when two or more Bobs are running, tracks each from replication to report, and gives Thoth his own sealed card. Optional companion to bobiverse.",
+      "category": "productivity",
+      "tags": [
+        "mod",
+        "dashboard",
+        "pane",
+        "agents",
+        "bobiverse"
+      ]
     }
   ]
 }

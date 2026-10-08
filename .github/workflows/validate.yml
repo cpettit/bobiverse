@@ -16,6 +16,7 @@ jobs:
         run: |
           claude plugin validate .
           claude plugin validate plugins/bobiverse
+          claude plugin validate plugins/bobnet-display
       - name: Frontmatter parses on every agent, command, and output style
         run: |
           pip install -q pyyaml
@@ -32,6 +33,8 @@ jobs:
           EOF
       - name: Hook self-tests
         run: python3 plugins/bobiverse/hooks/scripts/selftest.py
+      - name: Moot Hall mod tests
+        run: claude plugin test plugins/bobnet-display
       - name: Status line renders
         run: |
           echo '{"model":{"display_name":"Claude"},"workspace":{"current_dir":"."},"context_window":{"used_percentage":12}}' \
