@@ -126,6 +126,25 @@ function describeTool(e: { tool: string; input?: unknown }): string {
   return clip(`${e.tool} ${String(arg).split("\n")[0]}`.trim(), 48);
 }
 
+/** Whether this moot has already toasted. Module variable: resets on reload, which is harmless. */
+let toasted = false;
+
+/**
+ * The always-visible fallback: a status line under the prompt while any Bob is
+ * running, cleared when the relay goes quiet. Shows even when the pane can't be placed.
+ */
+async function relayStatus($: EngineInterface) {
+  const live = (await read($, bobs)).filter(
+    (b) => b.status === "running" || b.status === "spooling",
+  );
+  if (live.length === 0) {
+    $.ui.status(undefined);
+    return;
+  }
+  const names = live.map((b) => `${GLYPH[b.name] ?? "◇"} ${b.name}`).join("  ");
+  $.ui.status(`⟡ BOBNET · ${live.length} on relay · ${names} · /bobnet`);
+}
+
 /** Append one line to the SCUT traffic log. */
 async function log($: EngineInterface, t: Omit<Traffic, "at">) {
   const at = await $.clock.now();
@@ -144,8 +163,12 @@ export const register: Register = (on) => {
   });
 
   on("command.run", { command: "bobnet" }, async ($) => {
-    await $.ui.open({ id: PANE, title: TITLE });
-    return { text: "Bobnet relay open." };
+    const opened = await $.ui.open({ id: PANE, title: TITLE });
+    return {
+      text: opened.isPlaced
+        ? "Bobnet relay open."
+        : `Bobnet relay is open but this surface isn't drawing it: ${opened.reason}`,
+    };
   });
 
   // ── a Bob launches ──────────────────────────────────────────────────────
@@ -192,8 +215,23 @@ export const register: Register = (on) => {
           tone: "normal",
         });
       }
-      void $.ui.open({ id: PANE, title: TITLE });
+      // An unasked open is only drawn on a wide terminal (≥144 cols, 110 once
+      // the person has opened it) or a surface that places panes. Otherwise it
+      // waits undrawn — so always keep a status line, and toast once per moot.
+      const opened = await $.ui.open({ id: PANE, title: TITLE });
+      if (!opened.isPlaced && !toasted) {
+        toasted = true;
+        $.ui.toast(
+          `⟡ Moot convened — ${active.length} Bobs on the relay. /bobnet to watch.`,
+        );
+        await log($, {
+          from: "BOBNET",
+          text: `pane waiting: ${clip(opened.reason, 60)}`,
+          tone: "dim",
+        });
+      }
     }
+    await relayStatus($);
     return ran;
   }).catch(($, e, next) => next(e)); // observer: a display bug must never refuse a spawn
 
@@ -253,6 +291,7 @@ export const register: Register = (on) => {
         tone: "normal",
       });
 
+    await relayStatus($);
     const stillRunning = (await read($, bobs)).some(
       (b) => b.status === "running" || b.status === "spooling",
     );
@@ -263,6 +302,7 @@ export const register: Register = (on) => {
         tone: "normal",
       });
       await update($, mootStartedAt, () => null);
+      toasted = false;
       // TODO auto-close: hold ~8s so the tally is visible, then $.ui.close({ id: PANE }) — unless a new
       // moot has started in the meantime (check mootStartedAt again after the wait).
     }

@@ -65,3 +65,17 @@ test("roster tracks two Bobs from spawn to report, and adjourns the moot", async
   expect(after).toContain("drift✓");
   expect(after).not.toContain("MOOT IN SESSION");
 });
+
+test("on a narrow window the unasked pane waits, and the moot still announces itself", async ($, on) => {
+  mock.clock(on);
+  let n = 0;
+  on("agent.spawn", () => ({ model: "inherit", agentId: `bob-${++n}` }));
+  on("ui.open", () => ({ value: { isPlaced: false, reason: "opened unasked under 144 columns (now 100)" } }) as never);
+
+  await $.agent.spawn({ prompt: "a", description: "map hooks", subagentType: "bobiverse:milo" } as never);
+  await $.agent.spawn({ prompt: "b", description: "secrets sweep", subagentType: "bobiverse:mario" } as never);
+
+  const text = await paneText($);
+  expect(text).toContain("moot convened");
+  expect(text).toContain("pane waiting: opened unasked under 144 columns");
+});
