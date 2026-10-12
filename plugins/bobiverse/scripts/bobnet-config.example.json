@@ -1,32 +1,100 @@
 {
   "_comment": "Example .bobnet/ config files. Copy any of these into your project's .bobnet/ to override defaults. All keys optional.",
-
   "busters.json": {
-    "ask_extra": ["\\bmy-dangerous-cli\\s+nuke\\b"],
-    "allow": ["\\brm\\s+-rf\\s+\\./?(dist|build|node_modules|\\.cache)/?\\s*$"]
+    "ask_extra": [
+      "\\bmy-dangerous-cli\\s+nuke\\b"
+    ],
+    "allow": [
+      "\\brm\\s+-rf\\s+\\./?(dist|build|node_modules|\\.cache)/?\\s*$"
+    ]
   },
-
   "prime-directive.json": {
-    "ask_extra": ["(^|/)charts/prod/", "(^|/)ansible/inventory/production"],
-    "deny": ["(^|/)\\.git/(config|hooks/|objects/)", "(^|/)compliance/evidence/"]
+    "ask_extra": [
+      "(^|/)charts/prod/",
+      "(^|/)ansible/inventory/production"
+    ],
+    "deny": [
+      "(^|/)\\.git/(config|hooks/|objects/)",
+      "(^|/)compliance/evidence/"
+    ]
   },
-
   "suddar.json": {
-    "allow_paths": ["\\.example$", "\\.sample$", "(^|/)tests?/fixtures/", "(^|/)docs/"],
+    "allow_paths": [
+      "\\.example$",
+      "\\.sample$",
+      "(^|/)tests?/fixtures/",
+      "(^|/)docs/"
+    ],
     "allow_patterns": []
   },
-
   "autofactory.json": {
     "enabled": true,
     "format": true,
     "lint": true,
-    "skip": ["(^|/)node_modules/", "(^|/)vendor/", "(^|/)generated/"]
+    "skip": [
+      "(^|/)node_modules/",
+      "(^|/)vendor/",
+      "(^|/)generated/"
+    ]
   },
-
   "scut.json": {
     "ntfy_url": "https://ntfy.sh/replace-with-a-long-random-topic",
     "webhook_url": null,
     "min_seconds": 300,
     "notify": "1"
+  },
+  "data-zones.json": {
+    "zones": [
+      {
+        "name": "clinical warehouse",
+        "classification": "PHI",
+        "mode": "deny",
+        "paths": [
+          "warehouse/clinical/**",
+          "**/*.hl7"
+        ],
+        "tables": [
+          "patients",
+          "encounters",
+          "claims"
+        ],
+        "uris": [
+          "s3://acme-phi-*",
+          "az://phistore/*"
+        ]
+      }
+    ],
+    "defaults": true
+  },
+  "phi-guard.json": {
+    "allow_paths": [
+      "^synthetic/"
+    ],
+    "medium": "ask"
+  },
+  "pii.json": {
+    "extra_id_patterns": [
+      {
+        "name": "member_id",
+        "regex": "\\bMBR\\d{9}\\b",
+        "severity": "high"
+      }
+    ],
+    "allow_values": [],
+    "disable": []
+  },
+  "egress.json": {
+    "mode": "ask",
+    "allow_domains": [
+      "internal.acme.com"
+    ],
+    "search": "allow",
+    "defaults": true
+  },
+  "audit.json": {
+    "enabled": true
+  },
+  "mission.json": {
+    "enabled": true
   }
 }

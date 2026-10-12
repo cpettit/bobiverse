@@ -1,13 +1,13 @@
 # Bobiverse — a crew for Claude Code
 
-A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-two agents, fourteen commands, ten hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
+A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-two agents, fifteen commands, fourteen hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
 
 ```
 bobiverse/
 ├── .claude-plugin/plugin.json
 ├── agents/          22 subagents
-├── commands/        14 slash commands
-├── hooks/           hooks.json + 10 Python hook scripts (stdlib only)
+├── commands/        15 slash commands
+├── hooks/           hooks.json + 14 Python hook scripts, a shared PII/PHI detector, audit tools (stdlib only)
 ├── output-styles/   bob.md — main thread in Bob's voice
 ├── statusline/      bobs-log.py
 └── scripts/         others-watch.sh (scheduler), bobnet-config.example.json
@@ -71,7 +71,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | Command | What happens |
 |---|---|
 | `/moot <question>` | Bob frames it, spawns the relevant Bobs in parallel, integrates, records dissent |
-| `/suddar <scope>` | Full posture sweep: Milo maps → Medeiros attacks → Mario verifies → Howard writes it up mapped to SOC 2 / CIS / NIST |
+| `/suddar <scope>` | Full posture sweep: Milo maps → Medeiros attacks → Mario verifies → Howard writes it up mapped to SOC 2 / HIPAA / PCI / CIS / NIST |
 | `/terraplan [dir]` | Charles turns a Terraform plan into a blast-radius report — destroys/replaces explained, privilege grants and exposure flagged, cost delta; `--drift` for refresh-only; never applies |
 | `/framejack <problem>` | Deep-think planning. Bill designs, Marvin pre-mortems, you get a plan. Executes nothing until you say **go** |
 | `/replicate <N> <task>` | Fan out to N Garfields (or `--roamers`) in worktrees, merge, Homer checks the result |
@@ -81,6 +81,7 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | `/drift [spec]` | Compare the work to the original ask. Done / partial / missing / drift |
 | `/uplift <code>` | Archimedes builds a learning path for someone new to it |
 | `/thoth <question>` | Bob checks it's a thinking question not a looking one, sharpens it, spawns Thoth (Oracle Gate prompts for cost), relays the answer with its uncertainty sections intact |
+| `/compliance [--export] [--sweep hipaa\|soc2\|pci]` | Which guards are wired and the controls they support, config in effect, audit-chain verification, gap list; `--export` writes an evidence pack; `--sweep` runs a framed `/suddar` |
 | `/log [note]` | Append to the Bobnet journal |
 | `/disarm [min] <reason>` | Lower Busters' ASK tier for a window. Requires a reason and the word **disarm** |
 | `/others-watch` | Unattended CVE / IaC / secret / Actions-pinning sweep → `.bobnet/others-watch/<date>.md`, pings on High+ |
@@ -97,6 +98,10 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | **Jeeves** | `SessionStart` | Situational brief: branch, dirty files, recent commits, worktrees, last 3 journal entries, Bender research in progress, TODO count, which hooks are armed. |
 | **Mission brief** | `UserPromptSubmit` + `SessionStart(compact)` | Saves the first prompt of the session verbatim; re-injects it after context compaction so the original success criteria survive the summary. |
 | **Bobnet log** | `Stop` | If the session changed anything and no journal entry was written, blocks once and asks for a 10-line "Bob's log" entry in `.bobnet/journal.md`. Never nags twice. |
+| **PHI Guard** | `PreToolUse` Write/Edit/Bash | Validated PII/PHI detection (SSN ranges, Luhn-checked cards, NPI checksum, Medicare MBI, DEA checksum, labelled MRN/member IDs; DOB-near-name, diagnosis codes, phone-near-name, bulk emails). Identifiers in a write → deny; combinations → ask; identifiers in a command → ask. Documented test values are ignored. |
+| **Data Zones** | `PreToolUse` Read/Grep/Glob/Edit/Write/Bash/MCP | Classified paths, SQL tables and storage URIs from `.bobnet/data-zones.json` → ask or deny *before* the data reaches the model. Built-in ask zones: `phi/`, `pii/`, HL7, DICOM, C-CDA, X12 835/837. |
+| **Egress** | `PreToolUse` WebFetch/WebSearch/Bash | Personal data in a URL, query or curl body → deny. Domain policy: `audit` (default, logged), `ask`, or `deny` with an allowlist. |
+| **Audit chain** | `PostToolUse` all tools + every gate decision | Append-only JSONL under `.bobnet/audit/`, each entry SHA-256-chained to the last; targets redacted; Prime Directive denies Claude any edit there. `audit_verify.py` finds the first tampered line. |
 | **Oracle Gate** | `PreToolUse` Agent | Forces a permission prompt before any agent on the gated list (default: `thoth`) is spawned, even in auto-accept mode. Launching the expensive one is a human decision. `.bobnet/oracle-gate.json` → `{"ask_agents": [...]}`. |
 | **SCUT** | `Notification`, `Stop` | Pushes to ntfy / Slack / Discord webhook when Claude is waiting on you or a long session finishes. Silent unless `SCUT_NTFY_URL` or `SCUT_WEBHOOK_URL` is set. |
 

@@ -31,10 +31,11 @@ DEFAULT_ASK = [
     r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Cargo\.lock|go\.sum)$",
     r"(^|/)CODEOWNERS$", r"(^|/)SECURITY\.md$", r"(^|/)LICENSE",
     r"(^|/)\.claude/settings(\.local)?\.json$",
-    r"(^|/)\.bobnet/(busters|prime-directive|suddar)\.json$",   # the hooks' own config
+    r"(^|/)\.bobnet/(busters|prime-directive|suddar|phi-guard|pii|data-zones|egress|audit|mission|oracle-gate)\.json$",  # the hooks' own config
 ]
 DEFAULT_DENY = [
     r"(^|/)\.git/(config|hooks/|objects/)",
+    r"(^|/)\.bobnet/audit/",  # the hash-chained audit log: Claude never edits it
 ]
 
 cfg = load_config(ev, "prime-directive", {"ask": DEFAULT_ASK, "deny": DEFAULT_DENY, "ask_extra": []})

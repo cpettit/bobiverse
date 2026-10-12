@@ -5,3 +5,6 @@ __pycache__/
 .bobnet/busters.disarmed
 # engine-generated mod types (laid when a mod loads)
 plugins/*/.claude-plugin/types/
+# audit log and evidence packs: export deliberately, don't commit by accident
+.bobnet/audit/
+.bobnet/compliance/

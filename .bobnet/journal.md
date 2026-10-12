@@ -23,3 +23,9 @@
 - Decided: none
 - Open: retest Moot Hall auto-open/status line after reload; tags v0.2.0–v0.3.4 still to push from a local clone.
 - Bobs: solo
+
+## 2026-10-12 09:40 — v0.4.0: regulated-data guards (PHI/PII, zones, egress, audit chain, shield)
+- Did: `pii.py` detector; hooks `phi_guard`, `data_zones`, `egress`, `audit` (+ `audit_verify`, `compliance_check`); SCUT + mission redaction; new mod `plugins/bobnet-shield/` (tool-result redaction); `/compliance`; `/suddar` hipaa/pci frameworks. All suites green; posture shows 8/8 guards wired.
+- Decided: four exposure paths (read / tool returns / write / send) each get a guard; audit records every gate decision via bobnet.pre_tool_decision. Shield fails CLOSED (withholds) while Moot Hall fails open — data leak vs display bug. No default fixture allowlist in PHI guard (real records in fixtures is the classic leak). Egress defaults to audit mode so it doesn't break everyday docs lookups; /compliance flags it as a gap.
+- Open: shield fail-closed path has no direct test (hard to force a throw post-next). Grep/Glob over a whole tree containing a zone isn't caught — only explicit zone paths. Audit chain is local; off-box shipping/anchoring is documented, not automated. Mario's README demo AWS key and Milo's fail-open-on-unparsable-input for safety hooks still undecided.
+- Bobs: solo

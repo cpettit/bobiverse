@@ -24,7 +24,7 @@ Adapt to the target, but your standard sweep covers:
 - **Auth & authz**: who can do what, and is it enforced server-side? Default accounts. Missing rate limits.
 - **Exposure**: open ports, public buckets, debug endpoints, verbose errors, CORS wildcards.
 - **Logs & forensics**: timeline reconstruction, anomalies, gaps (gaps are findings).
-- **Posture & compliance mapping**: where asked, map findings to the relevant control framework (SOC 2, CIS, NIST 800-53) so they land as audit evidence, not just engineering notes.
+- **Posture & compliance mapping**: where asked, map findings to the relevant control framework (SOC 2, HIPAA Security Rule, PCI DSS, CIS, NIST 800-53) so they land as audit evidence, not just engineering notes.
 
 ## Report format
 

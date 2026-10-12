@@ -1,12 +1,12 @@
 ---
 description: "Deep scan — full security posture sweep. Medeiros models the attack, Mario verifies which paths are real, Howard writes it up mapped to controls (SOC 2 / CIS / NIST). Read-only throughout."
-argument-hint: "<scope: repo path, service name, or 'this repo'> [--framework soc2|cis|nist|none]"
+argument-hint: "<scope: repo path, service name, or 'this repo'> [--framework soc2|hipaa|pci|cis|nist|none]"
 allowed-tools: Agent, Read, Glob, Grep, Bash, Write
 ---
 
 SUDDAR sweep requested on: **$ARGUMENTS**
 
-You are Bob, coordinating. This is a read-only exercise — nobody remediates during a sweep. Default control framework is SOC 2 (Trust Services Criteria) unless `--framework` says otherwise; `none` skips the mapping.
+You are Bob, coordinating. This is a read-only exercise — nobody remediates during a sweep. Default control framework is SOC 2 (Trust Services Criteria) unless `--framework` says otherwise: `hipaa` maps to the HIPAA Security Rule (45 CFR §164.308/.310/.312) and the Privacy Rule's minimum-necessary standard; `pci` to PCI DSS v4.0 requirements; `cis` and `nist` to CIS Controls v8 and NIST 800-53; `none` skips the mapping. Under `hipaa`, Mario also looks for PHI in fixtures, seeds and logs, logging statements that would emit identifiers, unencrypted storage or transport of zoned data, and missing audit logging around PHI access.
 
 ## Phase 0 — Scope (you)
 State in 3 lines: what's in scope (paths, services, environments), what's explicitly out, and what you're assuming about the deployment context (cloud provider, exposure, data sensitivity). If the human hasn't confirmed the target is theirs to assess, ask once and stop.

@@ -6,6 +6,7 @@ Every hook does: `ev = read_event()` then inspects ev.tool / ev.input / etc.
 Field names in Claude Code's hook JSON have varied across versions; this
 normalizes the common spellings so the hooks don't care.
 """
+
 import json
 import os
 import sys
@@ -33,13 +34,20 @@ class Event:
     # Convenience accessors for the tools we gate most often
     @property
     def command(self) -> str:
-        return str(self.input.get("command", "")) if isinstance(self.input, dict) else ""
+        return (
+            str(self.input.get("command", "")) if isinstance(self.input, dict) else ""
+        )
 
     @property
     def file_path(self) -> str:
         if not isinstance(self.input, dict):
             return ""
-        return str(self.input.get("file_path") or self.input.get("path") or self.input.get("notebook_path") or "")
+        return str(
+            self.input.get("file_path")
+            or self.input.get("path")
+            or self.input.get("notebook_path")
+            or ""
+        )
 
     @property
     def written_text(self) -> str:
@@ -57,15 +65,34 @@ class Event:
         return "\n".join(parts)
 
 
+_EVENT: "Event | None" = None
+
+
 def read_event() -> Event:
+    global _EVENT
     try:
         data = sys.stdin.read()
-        return Event(json.loads(data) if data.strip() else {})
+        _EVENT = Event(json.loads(data) if data.strip() else {})
     except Exception:
-        return Event({})
+        _EVENT = Event({})
+    return _EVENT
+
+
+def _audit(decision: str, reason: str):
+    """Record a gate decision in the hash-chained audit log. Never raises."""
+    if _EVENT is None:
+        return
+    try:
+        import audit  # local module beside this one
+
+        hook = Path(sys.argv[0]).stem
+        audit.record(_EVENT, hook=hook, decision=decision, reason=reason)
+    except Exception:
+        pass
 
 
 # ---------- .bobnet state directory ----------
+
 
 def bobnet_dir(ev: Event) -> Path:
     """Project-local state dir. Override with BOBNET_DIR."""
@@ -83,7 +110,11 @@ def ensure_bobnet(ev: Event) -> Path:
         gi = d / ".gitignore"
         if not gi.exists():
             # Journal and research are meant to be committed; session markers are not.
-            gi.write_text("*.marker\nmission-*.md\nbusters.disarmed\n")
+            # The audit log and compliance packs may hold paths/commands from a real
+            # environment; they're evidence to export deliberately, not to commit by accident.
+            gi.write_text(
+                "*.marker\nmission-*.md\nbusters.disarmed\naudit/\ncompliance/\n"
+            )
     except Exception:
         pass
     return d
@@ -117,19 +148,26 @@ def load_config(ev: Event, name: str, default: dict) -> dict:
 
 # ---------- hook responses ----------
 
+
 def allow():
     sys.exit(0)
 
 
 def pre_tool_decision(decision: str, reason: str):
-    """PreToolUse: decision in allow|deny|ask."""
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": decision,
-            "permissionDecisionReason": reason,
-        }
-    }))
+    """PreToolUse: decision in allow|deny|ask. Asks and denies are audited."""
+    if decision != "allow":
+        _audit(decision, reason)
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": decision,
+                    "permissionDecisionReason": reason,
+                }
+            }
+        )
+    )
     sys.exit(0)
 
 

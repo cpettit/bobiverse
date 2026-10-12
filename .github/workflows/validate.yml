@@ -17,6 +17,7 @@ jobs:
           claude plugin validate .
           claude plugin validate plugins/bobiverse
           claude plugin validate plugins/bobnet-display
+          claude plugin validate plugins/bobnet-shield
       - name: Frontmatter parses on every agent, command, and output style
         run: |
           pip install -q pyyaml
@@ -35,6 +36,10 @@ jobs:
         run: python3 plugins/bobiverse/hooks/scripts/selftest.py
       - name: Moot Hall mod tests
         run: claude plugin test plugins/bobnet-display
+      - name: Shield mod tests
+        run: claude plugin test plugins/bobnet-shield
+      - name: Compliance posture report renders
+        run: python3 plugins/bobiverse/hooks/scripts/compliance_check.py --project . > /dev/null
       - name: Status line renders
         run: |
           echo '{"model":{"display_name":"Claude"},"workspace":{"current_dir":"."},"context_window":{"used_percentage":12}}' \

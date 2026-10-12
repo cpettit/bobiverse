@@ -4,15 +4,16 @@
 
 A Claude Code plugin with three layers:
 
-- **Ten hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, a cost gate on the expensive agent, and session memory that survives context compaction.
+- **Fourteen hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, PII/PHI guards on writes, reads and web requests, a hash-chained audit log, a cost gate on the expensive agent, and session memory that survives context compaction.
 - **Twenty-two agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
-- **Fourteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
+- **Fifteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
 
 The Bobs are the fun part. The hooks are the reason to keep it installed.
 
 ```
 /plugin marketplace add cpettit/bobiverse
 /plugin install bobiverse@bobiverse
+/plugin install bobnet-shield@bobiverse    # recommended for regulated data: redacts PII/PHI from tool output
 /plugin install bobnet-display@bobiverse   # optional: the Moot Hall live display
 ```
 
@@ -74,7 +75,7 @@ Twenty subagents. The character isn't decoration — it's the behavioral spec, a
 | 🔬 | **bill** | Architecture, ADRs, trade-off analysis. Designs; doesn't build. | no |
 | 🚀 | **riker** | Incidents, deploys, rollbacks. The only Bob allowed near production, and he makes you confirm. | with confirmation |
 | ⚓ | **will** | Routine releases, changelogs, versioning. Riker's calmer register. Escalates when it stops being routine. | with confirmation |
-| 🔭 | **mario** | Security recon, audits, forensics. Evidence chains with `path:line`. Maps findings to SOC 2 / CIS / NIST. | no |
+| 🔭 | **mario** | Security recon, audits, forensics. Evidence chains with `path:line`. Maps findings to SOC 2 / HIPAA / PCI / CIS / NIST. | no |
 | 🎯 | **medeiros** | Red team. Attack trees and abuse cases for Mario to verify. Never produces exploits. | no |
 | 🔧 | **garfield** | Implementation from spec. Smallest correct change, matches the codebase. | yes |
 | ⚡ | **neil** / **herschel** | Same spec, two independent implementations — minimal vs. robust — in separate worktrees. Homer and Marvin pick. | worktree only |
@@ -112,8 +113,30 @@ Claude delegates to them automatically based on the task, or you can call them b
 | `/uplift <code>` | Archimedes builds a learning path for someone new to it. |
 | `/others-watch` | Unattended CVE / IaC / secret / Actions-pinning sweep. Designed for cron. Pings only on High+. |
 | `/thoth <question>` | One hard question to the oracle. Bob checks it's a *thinking* question rather than a *looking* one, sharpens it, and relays the answer with its uncertainty intact. Gated. |
+| `/compliance` | Which guards are wired and which controls each supports, the config in effect, audit-chain verification and a gap list. `--export` writes an evidence pack with anchor hashes; `--sweep hipaa` runs a HIPAA-framed `/suddar`. |
 | `/log [note]` | Append to the Bobnet journal. |
 | `/disarm [min] <reason>` | Lower Busters' ASK tier for a window. Requires a reason and the word **disarm**. |
+
+---
+
+## Regulated data — HIPAA, PII, PHI, SOC 2
+
+Personal data can reach an AI coding agent four ways, and there's a guard on each:
+
+| Path | Guard | What happens |
+|---|---|---|
+| **It reads it** — a file, a table, a bucket | **Data Zones** | Classified locations need a human's approval, or are denied outright, *before* the read. Once data is in the model's context it has left your environment; this is the only place to stop it. |
+| **A tool returns it** — a log line, a query result, a page | **Shield** (`bobnet-shield` mod) | Identifiers are replaced with `[SSN redacted]` before the model sees the result. If the shield itself fails, the result is withheld, never passed through unscanned. |
+| **It writes it** — a fixture, a seed file, a config | **PHI Guard** | Identifiers in a write are denied; identifying combinations (DOB next to a name, a diagnosis code next to "diagnosis") prompt. Documented test values are allowed, real ones aren't. |
+| **It sends it** — a URL, a search, a curl, a notification | **Egress**, SCUT scrub | Personal data in an outbound request is denied. Domains can be allowlisted. Push notifications are redacted. |
+
+Underneath all four, the **audit chain** records every tool call and every gate decision in an append-only, SHA-256-chained log that Claude can't edit, and `/compliance --export` packages it with your configuration as evidence.
+
+Detection is validated, not just pattern-matched: SSNs are checked against SSA-invalid ranges, card numbers against Luhn, NPIs and DEA numbers against their checksums, and record/member IDs only count next to a label. Your own identifier formats go in `.bobnet/pii.json`.
+
+**What this doesn't do.** It reduces what an agent can expose; it doesn't make a workflow compliant. Whether data sent to a model provider is permitted for a given use depends on your agreements (for PHI, a BAA) and is a decision for you and your counsel, not a setting. A local hash chain proves the log wasn't quietly edited; it doesn't stop someone with write access from regenerating it, so ship it off-box and anchor the head hash. The control references in `/compliance` say which requirement each guard *supports* — your auditor decides whether it satisfies it.
+
+**Minimum setup for regulated work:** define `.bobnet/data-zones.json` for where your regulated data lives (mode `deny` until your agreements say otherwise), set egress to `ask` or `deny`, install `bobnet-shield`, and run `/compliance --export` to get a baseline.
 
 ---
 
@@ -206,19 +229,21 @@ To remove a hook entirely, delete its entry from `plugins/bobiverse/hooks/hooks.
 
 ## Repository layout
 
-This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) hosting two plugins: the crew, and the Moot Hall display mod.
+This repo is a [Claude Code plugin marketplace](https://code.claude.com/docs/en/plugin-marketplaces) hosting three plugins: the crew, the Shield redaction mod, and the Moot Hall display mod.
 
 ```
 .claude-plugin/marketplace.json     the marketplace manifest
 plugins/bobiverse/                  the plugin
   .claude-plugin/plugin.json
   agents/        22 subagent definitions
-  commands/      14 slash commands
+  commands/      15 slash commands
   hooks/         hooks.json + scripts/ (bobnet.py is the shared parser)
   output-styles/ bob.md
   statusline/    bobs-log.py
   scripts/       others-watch.sh, bobnet-config.example.json
   README.md      full reference
+plugins/bobnet-shield/              the redaction mod
+  hooks/register.ts  tests/
 plugins/bobnet-display/             the Moot Hall mod
   hooks/register.tsx  types/  tests/  DESIGN.md
 .github/workflows/validate.yml      CI: validates all manifests, hook self-tests, mod tests

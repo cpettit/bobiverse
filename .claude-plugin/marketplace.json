@@ -34,6 +34,20 @@
         "agents",
         "bobiverse"
       ]
+    },
+    {
+      "name": "bobnet-shield",
+      "source": "./plugins/bobnet-shield",
+      "description": "Redacts PII/PHI from tool results before the model reads them \u2014 SSNs, card numbers, NPI, Medicare IDs, DEA numbers, record/member IDs and identifying combinations. Fails closed. Companion to bobiverse.",
+      "category": "security",
+      "tags": [
+        "mod",
+        "hipaa",
+        "pii",
+        "phi",
+        "redaction",
+        "compliance"
+      ]
     }
   ]
 }
