@@ -42,6 +42,9 @@ cfg = load_config(
 if not cfg.get("enabled", True):
     allow()
 
+# Only files Claude just wrote — never format a file it merely read.
+if ev.tool not in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+    allow()
 path = ev.file_path
 if not path or not os.path.isfile(path):
     allow()

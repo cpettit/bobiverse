@@ -159,7 +159,9 @@ An optional companion mod, `bobnet-display`. When two or more Bobs are running a
 
 Shell equivalent: `claude plugin marketplace add cpettit/bobiverse && claude plugin install bobiverse@bobiverse`. Add `--scope project` to install for one repo. Pin a release with `cpettit/bobiverse#v0.2.0`.
 
-Requires Python 3.8+ on `PATH`. Formatters, linters, and scanners are used only if already installed.
+Requires Python 3.8+ on `PATH` as `python3`. Formatters, linters, and scanners are used only if already installed.
+
+**Windows:** make sure `python3` resolves to a real interpreter, not the Microsoft Store alias (Settings → Apps → Advanced app settings → App execution aliases). Hooks run through a single dispatcher, `gate.py`, so each tool call pays one Python startup rather than one per guard. If your first prompt after a cold boot still times out, the culprit is usually antivirus scanning the interpreter; excluding the Python install directory from real-time scanning fixes it.
 
 **Optional extras**
 

@@ -16,8 +16,11 @@ Prints a markdown posture report. With --export, also writes
 
 Exit 0 always; the report says what's wrong. This tool reports, it doesn't decide.
 """
+from __future__ import annotations
+
 
 import argparse
+import re
 import hashlib
 import json
 import os
@@ -92,7 +95,8 @@ def wired_scripts() -> set[str]:
             for x in g.get("hooks", []):
                 cmd = x.get("command", "")
                 for s, *_ in GUARDS:
-                    if s in cmd:
+                    # standalone ("busters.py") or via the gate dispatcher ("gate.py pre busters …")
+                    if re.search(rf"(?<![\w-]){re.escape(s[:-3])}(\.py|\b)", cmd):
                         out.add(s)
     return out
 

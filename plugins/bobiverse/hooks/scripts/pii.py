@@ -28,6 +28,8 @@ values inside obvious placeholders. Config: .bobnet/pii.json
     "disable": ["email_bulk"]
   }
 """
+from __future__ import annotations
+
 
 import re
 from dataclasses import dataclass

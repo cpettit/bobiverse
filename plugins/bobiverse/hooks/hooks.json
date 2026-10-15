@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/jeeves.py\"",
-            "timeout": 15
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run jeeves",
+            "timeout": 30
           }
         ]
       },
@@ -16,8 +16,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mission.py\" restore",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run mission:restore",
+            "timeout": 30
           }
         ]
       }
@@ -27,8 +27,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/mission.py\" save",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run mission:save",
+            "timeout": 30
           }
         ]
       }
@@ -39,33 +39,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/busters.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prime_directive.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suddar.py\"",
-            "timeout": 90
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/phi_guard.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/data_zones.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/egress.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre busters prime_directive suddar phi_guard data_zones egress",
+            "timeout": 120
           }
         ]
       },
@@ -74,33 +49,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suddar.py\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/prime_directive.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/phi_guard.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/data_zones.py\"",
-            "timeout": 5
-          }
-        ]
-      },
-      {
-        "matcher": "Agent|Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/oracle_gate.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre suddar prime_directive phi_guard data_zones",
+            "timeout": 30
           }
         ]
       },
@@ -109,8 +59,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/data_zones.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre data_zones",
+            "timeout": 30
           }
         ]
       },
@@ -119,8 +69,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/data_zones.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre data_zones",
+            "timeout": 30
           }
         ]
       },
@@ -129,45 +79,30 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/egress.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre egress",
+            "timeout": 30
+          }
+        ]
+      },
+      {
+        "matcher": "Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre oracle_gate",
+            "timeout": 30
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bobnet_mark.py\"",
-            "timeout": 5
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/autofactory.py\"",
-            "timeout": 120
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bobnet_mark.py\"",
-            "timeout": 5
-          }
-        ]
-      },
-      {
         "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/audit.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" post bobnet_mark autofactory audit",
+            "timeout": 150
           }
         ]
       }
@@ -177,8 +112,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/drift.py\"",
-            "timeout": 5
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run drift",
+            "timeout": 30
           }
         ]
       }
@@ -188,8 +123,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/bobnet_log.py\"",
-            "timeout": 20
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run bobnet_log",
+            "timeout": 45
           }
         ]
       }
@@ -199,8 +134,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/scut.py\" notification",
-            "timeout": 10
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" run scut:notification",
+            "timeout": 30
           }
         ]
       }

@@ -17,6 +17,8 @@ explicitly:
   .bobnet/phi-guard.json → {"allow_paths": ["^synthetic/"], "medium": "ask"|"allow"|"deny"}
 Detector tuning lives in .bobnet/pii.json (see pii.py).
 """
+from __future__ import annotations
+
 
 import re
 import sys

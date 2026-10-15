@@ -28,6 +28,8 @@ and relative to the project root. Tables match SQL in Bash commands and in any
 MCP tool's input (FROM / JOIN / INTO / UPDATE / TABLE <name>, schema-qualified
 or quoted). URIs are globs matched against tokens in commands and MCP input.
 """
+from __future__ import annotations
+
 
 import fnmatch
 import os

@@ -335,6 +335,33 @@ with tempfile.TemporaryDirectory() as proj:
     check("mission: disabled → nothing saved", Path(P, ".bobnet", "mission-phi2.md").exists(), False)
     Path(P, ".bobnet", "mission.json").unlink()
 
+    print("gate dispatcher (one process per event)")
+    def gate(mode, scripts, event):
+        e = dict(os.environ)
+        e["CLAUDE_PROJECT_DIR"] = P
+        r = subprocess.run([sys.executable, str(HERE / "gate.py"), mode, *scripts], input=json.dumps(event),
+                           capture_output=True, text=True, timeout=60, env=e, cwd=P)
+        return r.returncode, r.stdout, r.stderr
+    BASH_SET = ["busters", "prime_directive", "suddar", "phi_guard", "data_zones", "egress"]
+    check("gate: ls → allow (no output)", gate("pre", BASH_SET, bash("ls -la"))[1].strip(), "")
+    check("gate: terraform destroy → ask", decision(gate("pre", BASH_SET, bash("terraform destroy"))[1]), "ask")
+    check("gate: catastrophic rm → deny", decision(gate("pre", BASH_SET, bash("rm -rf" + " /"))[1]), "deny")
+    _, out, _ = gate("pre", BASH_SET, bash(f"terraform destroy && echo {REAL_SSN} >> notes.txt"))
+    check("gate: two asks → one ask carrying both reasons", (decision(out), "BUSTERS" in out and "PHI GUARD" in out), ("ask", True))
+    check("gate: deny beats ask (SSN write)", decision(gate("pre", ["suddar", "prime_directive", "phi_guard", "data_zones"], write("db/migrations/1.sql", f"-- {REAL_SSN}"))[1]), "deny")
+    check("gate: a missing script is skipped, not fatal", decision(gate("pre", ["no_such_hook", "busters"], bash("terraform destroy"))[1]), "ask")
+    bad2 = Path(P, "bad2.py"); bad2.write_text("def f(:\n  pass\n")
+    import shutil as _shg
+    if _shg.which("ruff") or _shg.which("black") or _shg.which("flake8"):
+        code, _, err = gate("post", ["bobnet_mark", "autofactory", "audit"], write(str(bad2), ""))
+        check("gate post: autofactory feedback → exit 2", (code, "AUTOFACTORY" in err), (2, True))
+    code, _, _ = gate("post", ["bobnet_mark", "autofactory", "audit"], {"session_id": "t", "tool_name": "Read", "tool_input": {"file_path": str(bad2)}})
+    check("gate post: a Read never triggers the formatter", code, 0)
+    gate("run", ["mission:save"], {"session_id": "gate1", "prompt": "a prompt long enough to be saved as the mission"})
+    check("gate run: mission:save passes argv through", Path(P, ".bobnet", "mission-gate1.md").exists(), True)
+    _, out, _ = gate("run", ["drift"], {"session_id": "gatesub"})
+    check("gate run: a JSON block decision is relayed", decision(out), "block")
+
     print("session flow")
     sid = "s1"
     run(

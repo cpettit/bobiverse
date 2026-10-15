@@ -19,6 +19,8 @@ allow_domains extends the built-in list of documentation and package hosts
 (set "defaults": false to start from empty). A domain matches itself and its
 subdomains.
 """
+from __future__ import annotations
+
 
 import re
 import sys

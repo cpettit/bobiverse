@@ -29,3 +29,9 @@
 - Decided: four exposure paths (read / tool returns / write / send) each get a guard; audit records every gate decision via bobnet.pre_tool_decision. Shield fails CLOSED (withholds) while Moot Hall fails open — data leak vs display bug. No default fixture allowlist in PHI guard (real records in fixtures is the classic leak). Egress defaults to audit mode so it doesn't break everyday docs lookups; /compliance flags it as a gap.
 - Open: shield fail-closed path has no direct test (hard to force a throw post-next). Grep/Glob over a whole tree containing a zone isn't caught — only explicit zone paths. Audit chain is local; off-box shipping/anchoring is documented, not automated. Mario's README demo AWS key and Milo's fail-open-on-unparsable-input for safety hooks still undecided.
 - Bobs: solo
+
+## 2026-10-15 17:05 — v0.4.1: one Python process per hook event (Windows timeouts)
+- Did: `hooks/scripts/gate.py` dispatcher runs all guards for an event in-process (pre: most-restrictive wins; post: any exit 2 → feedback; run: generic). hooks.json 29 → 13 commands, timeouts raised (30–150s). Autofactory now checks the tool so a Read never triggers a format. `/compliance` recognizes gate-dispatched guards. `from __future__ import annotations` in new scripts so the stated Python 3.8+ is true. 10 new self-tests.
+- Decided: keep each guard script runnable standalone (tests call them directly); the dispatcher is a runner, not a rewrite. Bash calls: 6 processes → 1 (3.3x on Linux; startup-bound on Windows).
+- Open: confirm on Chloe's Windows machine that the UserPromptSubmit timeout is gone after updating; if not, antivirus exclusion for the Python dir.
+- Bobs: solo
