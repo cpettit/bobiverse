@@ -276,7 +276,7 @@ function tally(hits: Hit[]): string {
 }
 
 export const register: Register = (on, options) => {
-  const mode = String(options?.mode ?? "redact");
+  const mode = String(options?.mode ?? "redact").trim().toLowerCase(); // unknown values → redact (fail safe)
   const medium = options?.medium !== false;
   if (mode === "off") return;
 

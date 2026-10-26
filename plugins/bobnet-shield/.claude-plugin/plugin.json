@@ -1,15 +1,16 @@
 {
   "name": "bobnet-shield",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Redacts PII/PHI from tool results before the model reads them: SSNs, card numbers, NPI, Medicare IDs, DEA numbers, record/member IDs, and identifying combinations. Companion to bobiverse.",
-  "author": { "name": "Chloe" },
+  "author": {
+    "name": "Chloe"
+  },
   "userConfig": {
     "mode": {
       "type": "string",
       "title": "Mode",
-      "description": "redact: replace personal data with [SSN redacted] etc. withhold: drop any tool result that contains personal data. off: do nothing.",
-      "default": "redact",
-      "options": ["redact", "withhold", "off"]
+      "description": "One of: redact (replace personal data with [SSN redacted] etc.), withhold (drop any tool result that contains personal data), off (do nothing). Anything else is treated as redact.",
+      "default": "redact"
     },
     "medium": {
       "type": "boolean",
