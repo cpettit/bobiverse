@@ -62,15 +62,15 @@ if not cmd or dirty.exists():
 # Global flags may sit between the tool and its verb: `terraform -chdir=x apply`, `git -C dir push`.
 FLAGS = r"(\s+(-C|-c|-n|--namespace|--context|--kube-context|--kubeconfig|--git-dir|--work-tree)\s+\S+|\s+--?[\w-]+(=\S+)?)*"
 REMOTE_EFFECT = re.compile(
-    r"(^|[\s;&|(])("
-    r"(terraform|tofu)" + FLAGS + r"\s+(apply|destroy|import|state\s+(rm|mv|push)|taint)"
+    r"(^|[\s;&|(\"'/])("
+    r"(terraform|tofu|terragrunt)[\"']?" + FLAGS + r"\s+(apply|destroy|import|state\s+(rm|mv|push)|taint)"
     r"|az\s+(\S+\s+){1,3}(create|delete|update|set|assign|add|remove|deploy|start|stop|restart)"
     r"|aws\s+\S+\s+(create|delete|put|update|deploy|run|start|stop|terminate|invoke)"
     r"|aws\s+s3\s+(cp|mv|rm|sync)"
     r"|gcloud\s+.*\s(create|delete|update|deploy)"
     r"|kubectl" + FLAGS + r"\s+(apply|delete|patch|scale|rollout|create|replace|edit|label|annotate)"
     r"|helm" + FLAGS + r"\s+(install|upgrade|uninstall|rollback)"
-    r"|docker\s+push|git" + FLAGS + r"\s+push|gh\s+workflow\s+run"
+    r"|docker\s+push|git[\"']?" + FLAGS + r"\s+push|gh\s+workflow\s+run"
     r"|gh\s+(pr|issue)\s+(create|merge|close|edit|comment|review)|gh\s+release\s+(create|upload|delete|edit)"
     r"|(npm|yarn|pnpm|dotnet\s+nuget|cargo|twine)\s+publish"
     r"|dotnet\s+ef\s+database|psql|sqlcmd|mysql|ssh|scp|rsync"

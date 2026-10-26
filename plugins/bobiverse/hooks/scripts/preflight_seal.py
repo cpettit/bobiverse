@@ -53,8 +53,8 @@ SECRET_KEY = re.compile(
 # Global flags may sit between the tool and its verb: `terraform -chdir=x apply`, `git -C dir push`.
 FLAGS = r"(\s+(-C|-c|-n|--namespace|--context|--kube-context|--kubeconfig|--git-dir|--work-tree)\s+\S+|\s+--?[\w-]+(=\S+)?)*"
 DEPLOYS = re.compile(
-    r"(^|[\s;&|(])("
-    r"git" + FLAGS + r"\s+push|(terraform|tofu)" + FLAGS + r"\s+apply"
+    r"(^|[\s;&|(\"'/])("
+    r"git[\"']?" + FLAGS + r"\s+push|(terraform|tofu|terragrunt)[\"']?" + FLAGS + r"\s+apply"
     r"|az\s+(pipelines\s+run|deployment\s+\S+\s+create|webapp\s+deploy)"
     r"|gh\s+workflow\s+run|kubectl" + FLAGS + r"\s+apply|helm" + FLAGS + r"\s+(upgrade|install)"
     r"|(make\s+|(npm|yarn|pnpm)\s+run\s+|\./|(ba)?sh\s+)\S*deploy"

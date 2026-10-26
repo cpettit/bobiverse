@@ -718,7 +718,7 @@ with tempfile.TemporaryDirectory() as proj:
                   dirty_after(R2, "hun", "ls", "./gen.sh", between=append_untracked), True)
         Path(P, "flags").mkdir(exist_ok=True)
         for c in ["terraform -chdir=envs apply", "tofu -chdir=x apply -auto-approve", "git -C . push origin main",
-                  "kubectl -n prod apply -f k.yaml"]:
+                  "kubectl -n prod apply -f k.yaml", "/usr/bin/terraform apply", "terragrunt apply"]:
             check(f"dirty: global flags before the verb, {c!r}", dirty_after(str(Path(P, "flags")), f"hf{abs(hash(c))}", c), True)
     with tempfile.TemporaryDirectory() as Q2:
         t = Path(Q2, "t.tfvars")
@@ -744,8 +744,9 @@ with tempfile.TemporaryDirectory() as proj:
                         "--sha", "abc", "--value", "envs/qa.tfvars:scan"], cwd=Q2, capture_output=True,
                        env=dict(os.environ, CLAUDE_PROJECT_DIR=Q2))
         tq.write_text("scan = true\n", encoding="utf-8")
-        for c in ["terraform -chdir=envs apply", "git -C . push origin main"]:
-            check(f"seal: global flags before the verb, {c!r} → ask",
+        for c in ["terraform -chdir=envs apply", "git -C . push origin main", "/usr/bin/terraform apply",
+                  '"terraform" apply', "terragrunt apply", "./bin/terraform apply"]:
+            check(f"seal: deploy spelled another way, {c!r} → ask",
                   decision(run("gate.py", dict(bash(c, "hs"), cwd=Q2), "pre", "preflight_seal", project=Q2)[1]), "ask")
 
 

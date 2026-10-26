@@ -56,3 +56,5 @@
 - Decided: item 8 /log compact rejected (YAGNI, 5 entries). Item 10 redirected: Garfield lists "Parallelizable: N pieces", Bob runs /replicate. Seal asks (never denies) on a cleared-value change.
 - Open: uncommitted. Real SubagentStop payload not captured; drift/agent tracking assumes agent_id or agent-<id>.jsonl path. Windows `python3` launcher unaddressed. GitHub Desktop stash@{0} still present. Busters disarmed until 21:23.
 - Bobs: riker, bill, garfield, homer (x2), marvin
+
+## 2026-10-25 21:08 — Others watch: C0 H0 M2 L5 (9 new)
