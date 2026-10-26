@@ -22,24 +22,43 @@ from __future__ import annotations
 
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from bobnet import allow, load_config, pre_tool_decision, read_event  # noqa: E402
+from bobnet import allow, bobnet_dir, load_config, pre_tool_decision, read_event  # noqa: E402
 from pii import scan, summarize  # noqa: E402
 
 ev = read_event()
+
+
+def tally(result: str):
+    """Append one line per scan to .bobnet/audit/phi-scans-YYYY-MM.tsv so
+    /compliance can show the guard ran, even when it never fired. Records the
+    tool and the outcome only, never the scanned text. Never raises."""
+    try:
+        d = bobnet_dir(ev) / "audit"
+        d.mkdir(parents=True, exist_ok=True)
+        with open(d / f"phi-scans-{time.strftime('%Y-%m')}.tsv", "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\t{ev.tool}\t{result}\n")
+    except Exception:
+        pass
+
+
 cfg = load_config(ev, "phi-guard", {"allow_paths": [], "medium": "ask"})
 pii_cfg = load_config(ev, "pii", {})
 
 if ev.tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
     path = ev.file_path
     if path and any(re.search(p, path) for p in cfg.get("allow_paths", [])):
+        tally("skipped")
         allow()
     text = ev.written_text
     hits = scan(text, pii_cfg)
     if not hits:
+        tally("clean")
         allow()
+    tally("flagged")
     high = [h for h in hits if h.severity == "high"]
     if high:
         pre_tool_decision(
@@ -63,6 +82,7 @@ if ev.tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
 if ev.tool == "Bash":
     cmd = ev.command
     high = [h for h in scan(cmd, pii_cfg) if h.severity == "high"]
+    tally("flagged" if high else "clean")
     if high:
         pre_tool_decision(
             "ask",

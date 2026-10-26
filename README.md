@@ -4,9 +4,9 @@
 
 A Claude Code plugin with three layers:
 
-- **Fourteen hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, PII/PHI guards on writes, reads and web requests, a hash-chained audit log, a cost gate on the expensive agent, and session memory that survives context compaction.
+- **Fifteen hooks** that enforce rules instead of suggesting them — a destructive-command kill switch, a secret scanner that refuses the write, protected-path gates, PII/PHI guards on writes, reads and web requests, a hash-chained audit log, a cost gate on the expensive agent, and session memory that survives context compaction.
 - **Twenty-two agents** modeled on the replicants from Dennis E. Taylor's *Bobiverse*, each mapped to a real role: the security auditor can't edit, the canary runs in a disposable worktree, the reviewer has to argue in words.
-- **Fifteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers, a pre-mortem that runs before you commit to a plan.
+- **Sixteen commands** that chain them into workflows: a full security posture sweep, a Terraform blast-radius report, a deploy preflight with rollback triggers that also checks what ships is what it cleared, a build-test-fix loop, a pre-mortem that runs before you commit to a plan.
 
 The Bobs are the fun part. The hooks are the reason to keep it installed.
 
@@ -55,9 +55,10 @@ A permission prompt on edits to CI workflows, production infrastructure, IAM/RBA
 |---|---|---|
 | **Autofactory** | after every edit | Runs the formatter already installed for that file type (ruff, prettier, gofmt, rustfmt, shfmt, terraform fmt, …), and the linter **only if the project has configured it** (`ruff.toml`, an eslint config, `.yamllint`) — so nobody's global rule set gets imposed on code that didn't ask for it. Failures go straight back to Claude. Never installs anything. |
 | **Replicative drift** | subagent finishes | Blocks a subagent's first stop and makes it append a `DRIFT CHECK`: requirements addressed, missed, and anything it did outside the assignment. |
-| **Mission brief** | first prompt + after compaction | Saves your original ask verbatim; re-injects it after context compaction so the success criteria survive the summary. |
+| **Mission brief** | first prompt + after compaction | Saves your original ask verbatim, including a slash command's arguments; re-injects it after context compaction so the success criteria survive the summary. |
 | **Jeeves** | session start | Situational brief: branch, dirty files, recent commits, active worktrees, last three journal entries, open TODOs, which hooks are armed. |
-| **Bobnet log** | session end | If the session changed anything, asks once for a ten-line journal entry in `.bobnet/journal.md`. Cross-session memory the next Jeeves reads. |
+| **Bobnet log** | session end | If the session changed anything (an edit, a command that changed git state, or a deploy), asks once for a ten-line journal entry in `.bobnet/journal.md`, after every background Bob has reported. Cross-session memory the next Jeeves reads. |
+| **Preflight seal** | before a push, apply or deploy | If what `/preflight` cleared has changed since (a tfvars value, a role grant, a watched file), forces a prompt naming exactly what moved. |
 | **Oracle Gate** | before spawning an agent | Forces a permission prompt before Thoth (or any agent you list) is launched, even in auto-accept mode. The expensive agent is a human decision every time. |
 | **SCUT** | needs input / finished | Pushes to ntfy, Slack, or Discord when Claude is waiting on you or a long session ends. Silent unless configured. |
 
@@ -104,7 +105,8 @@ Claude delegates to them automatically based on the task, or you can call them b
 | `/suddar <scope>` | Full posture sweep. Milo maps → Medeiros attacks → Mario verifies → Howard writes it up mapped to controls. Read-only. |
 | `/terraplan [dir]` | Charles plans (or reads your plan) and reports blast radius: every destroy and replace explained, every privilege grant and public exposure called out, cost delta if infracost is present. `--drift` for refresh-only. Never applies. |
 | `/framejack <problem>` | Deep-think planning. Bill designs, Marvin pre-mortems, you get a plan with the holes already found. Executes nothing until you say **go**. |
-| `/preflight <target>` | Riker's deploy checklist. Rollback triggers defined *before* the deploy. GO / NO-GO. |
+| `/preflight <target>` | Riker's deploy checklist. Rollback triggers defined *before* the deploy. GO / NO-GO. Records what it cleared; a later push of something else asks first. |
+| `/build <spec>` | Garfield builds, Homer tests, Garfield fixes, up to three rounds. Ends green or hands back with the reason. |
 | `/postmortem <incident>` | Riker reconstructs the timeline from evidence; Howard writes the blameless doc. |
 | `/moot <question>` | Convene the relevant Bobs in parallel; Bob integrates and records dissent rather than averaging it. |
 | `/expedition [path]` | Milo surveys an unfamiliar repo → `EXPEDITION.md` with hazards. |

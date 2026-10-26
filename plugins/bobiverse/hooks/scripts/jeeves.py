@@ -23,7 +23,7 @@ root = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
 
 def sh(cmd, timeout=5):
     try:
-        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout, shell=isinstance(cmd, str)).stdout.strip()
+        return subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, shell=isinstance(cmd, str)).stdout.strip()
     except Exception:
         return ""
 
@@ -52,7 +52,7 @@ else:
 bn = bobnet_dir(ev)
 journal = bn / "journal.md"
 if journal.exists():
-    entries = [l for l in journal.read_text(errors="ignore").splitlines() if l.startswith("## ")]
+    entries = [l for l in journal.read_text(encoding="utf-8", errors="ignore").splitlines() if l.startswith("## ")]
     if entries:
         lines.append("")
         lines.append(f"Bobnet journal — last {min(3, len(entries))} of {len(entries)} entries:")
@@ -62,7 +62,7 @@ research = bn / "research"
 if research.exists():
     inprog = []
     for f in research.glob("*.md"):
-        head = f.read_text(errors="ignore")[:400]
+        head = f.read_text(encoding="utf-8", errors="ignore")[:400]
         if re.search(r"Status:\s*in-progress", head):
             inprog.append(f.stem)
     if inprog:
@@ -71,7 +71,20 @@ mission = bn / f"mission-{ev.session}.md"
 if ev.source == "resume" and mission.exists():
     lines.append("")
     lines.append("Original mission for this session:")
-    lines.append("  " + mission.read_text(errors="ignore").strip().replace("\n", "\n  ")[:600])
+    lines.append("  " + mission.read_text(encoding="utf-8", errors="ignore").strip().replace("\n", "\n  ")[:600])
+
+# Preflight records that no longer match the tree
+try:
+    import preflight_seal
+
+    for r in preflight_seal.records(ev):
+        if preflight_seal.expired(r):
+            continue
+        d = preflight_seal.deltas(ev, r)
+        if d:
+            lines.append(f"Preflight `{r.get('env')}` (cleared {str(r.get('cleared_sha'))[:12]}) no longer matches: {len(d)} change(s) — re-run /preflight before shipping")
+except Exception:
+    pass
 
 # TODOs
 todo = sh("git grep -c -E 'TODO|FIXME|XXX|HACK' -- ':!*.lock' ':!*.min.*' 2>/dev/null | awk -F: '{s+=$2} END {print s+0}'")
@@ -83,13 +96,13 @@ if todo and todo != "0":
 armed = ["Busters (destructive-command gate)", "SUDDAR (secret scan)", "Prime Directive (protected paths)", "Oracle Gate (Thoth asks first)", "PHI Guard", "Data Zones", "Egress", "Audit chain"]
 if (bn / "busters.disarmed").exists():
     try:
-        exp = float((bn / "busters.disarmed").read_text().strip())
+        exp = float((bn / "busters.disarmed").read_text(encoding="utf-8").strip())
         if time.time() < exp:
             armed[0] = f"Busters DISARMED for {int((exp - time.time()) / 60)} more min"
     except Exception:
         pass
 lines.append("")
 lines.append("Armed: " + " · ".join(armed))
-lines.append("Crew: /moot /suddar /compliance /terraplan /thoth /framejack /expedition /preflight /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
+lines.append("Crew: /moot /suddar /compliance /terraplan /thoth /framejack /expedition /preflight /build /postmortem /drift /uplift /replicate /log /disarm /others-watch — `/agents` lists the Bobs.")
 
 context("\n".join(lines))

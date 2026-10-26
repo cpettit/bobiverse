@@ -38,6 +38,8 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+from bobnet import read_stdin_text, utf8_stdio  # noqa: E402
+
 RANK = {"allow": 0, "ask": 1, "deny": 2}
 
 
@@ -76,7 +78,8 @@ def main():
     if len(sys.argv) < 3:
         sys.exit(0)
     mode, scripts = sys.argv[1], sys.argv[2:]
-    raw = sys.stdin.read()
+    utf8_stdio()
+    raw = read_stdin_text()
 
     if mode == "pre":
         best, reasons = "allow", []

@@ -11,6 +11,7 @@ dir so no .bobnet state leaks between cases.
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -497,6 +498,256 @@ with tempfile.TemporaryDirectory() as proj:
             (2, True),
         )
         Path(P, "ruff.toml").unlink()
+
+    print("encoding (Windows code pages)")
+    def run_bytes(script, event, *args, env=None):
+        e = dict(os.environ, CLAUDE_PROJECT_DIR=P, PYTHONIOENCODING="cp1252", PYTHONUTF8="0")
+        e.update(env or {})
+        r = subprocess.run([sys.executable, str(HERE / script), *args],
+                           input=json.dumps(event, ensure_ascii=False).encode("utf-8"),
+                           capture_output=True, timeout=60, env=e, cwd=P)
+        return r.stdout
+    kill = bash("rm -rf" + " / # 鍵")
+    check("busters: non-UTF-8 console, CJK in command → still deny",
+          decision(run_bytes("busters.py", kill).decode("utf-8", "replace")), "deny")
+    check("gate: non-UTF-8 console, CJK in command → still deny",
+          decision(run_bytes("gate.py", kill, "pre", "busters").decode("utf-8", "replace")), "deny")
+    jb = run_bytes("jeeves.py", {"session_id": "enc", "source": "startup", "cwd": P})
+    check("jeeves: cp1252 console still prints UTF-8 em dash",
+          "—" in jb.decode("utf-8", "replace"), True)
+
+    print("mission: what counts as the ask")
+    for i, (prompt, want) in enumerate([
+        ("/bobiverse:moot decide the cache strategy", "/bobiverse:moot decide the cache strategy"),
+        ("<command-message>m</command-message>\n<command-name>/bobiverse:moot</command-name>\n"
+         "<command-args>decide the cache strategy</command-args>", "/bobiverse:moot decide the cache strategy"),
+        ("/var/log/app.log shows a 500 on login", "/var/log/app.log shows a 500 on login"),
+        ("<div>fix the header layout please</div>", "<div>fix the header layout please</div>"),
+        ("/moot", None), ("/moot\n", None), ("/model opus", None), ("/compact keep the auth details", None),
+        ("/bobiverse:log summarize everything we did", None),
+        ("<command-name>/model</command-name><command-args></command-args>", None),
+        ('<agent-message from="a1">[Subagent hand-back] Riker report', None),
+        ("<task-notification><task-id>x</task-id></task-notification>", None),
+        ("[SYSTEM NOTIFICATION - NOT USER INPUT] agent finished", None),
+        ("go ahead", None),
+    ]):
+        msid = f"m{i}"
+        run("mission.py", {"session_id": msid, "prompt": prompt}, "save", project=P)
+        f = Path(P, ".bobnet", f"mission-{msid}.md")
+        got = f.read_text(encoding="utf-8").split("\n\n", 1)[1].strip() if f.exists() else None
+        check(f"mission: {prompt[:34]!r}", got, want)
+    run("mission.py", {"session_id": "mseq", "prompt": "<task-notification>done</task-notification>"}, "save", project=P)
+    run("mission.py", {"session_id": "mseq", "prompt": "now fix the flaky login test"}, "save", project=P)
+    check("mission: real ask after a notification is saved",
+          "flaky login" in Path(P, ".bobnet", "mission-mseq.md").read_text(encoding="utf-8"), True)
+    run("mission.py", {"session_id": "memoji", "prompt": "ship the 🚀 launch checklist today"}, "save", project=P,
+        env={"PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"})
+    check("mission: emoji prompt saved on a cp1252 locale",
+          "🚀" in Path(P, ".bobnet", "mission-memoji.md").read_text(encoding="utf-8"), True)
+
+    print("dirty marking (what makes the Stop hook ask for a log)")
+    have_git = subprocess.run(["git", "--version"], capture_output=True).returncode == 0
+    with tempfile.TemporaryDirectory() as R, tempfile.TemporaryDirectory() as N:
+        if have_git:
+            g = lambda *a: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *a],
+                                          cwd=R, capture_output=True)
+            g("init", "-q"); Path(R, "a.txt").write_text("a"); g("add", "."); g("commit", "-qm", "init")
+            Path(R, "wip.txt").write_text("already dirty before the session")
+
+        def dirty_after(project, sid, *cmds, between=None):
+            run("mission.py", {"session_id": sid, "prompt": "x" * 20, "cwd": project}, "save", project=project)
+            for i, c in enumerate(cmds):
+                if between and i == len(cmds) - 1:
+                    between()
+                run("bobnet_mark.py", dict(bash(c, sid), cwd=project), project=project)
+            return Path(project, ".bobnet", f"dirty-{sid}.marker").exists()
+
+        if have_git:
+            for c in ["git ls-files", "cd src && cat x", "cat a.txt; grep a a.txt | wc -l",
+                      "python3 -m pytest -q", "gh pr view 3", "cat RELEASE_NOTES.md"]:
+                check(f"dirty: repo, {c!r} → clean", dirty_after(R, f"r{abs(hash(c))}", c), False)
+            for c in ["cat x; terraform apply -auto-approve", "ls && make deploy", "git push origin main",
+                      "az role assignment create --role Owner", "kubectl apply -f k.yaml"]:
+                check(f"dirty: repo, {c!r} → dirty", dirty_after(R, f"r{abs(hash(c))}", c), True)
+            check("dirty: repo, a script that creates a file → dirty",
+                  dirty_after(R, "rnew", "ls", "python3 gen.py",
+                              between=lambda: Path(R, "gen_out.txt").write_text("x")), True)
+            def reedit():
+                time.sleep(0.02); Path(R, "wip.txt").write_text("edited again")
+            check("dirty: repo, re-editing an already-modified file → dirty",
+                  dirty_after(R, "rre", "ls", "./fmt.sh", between=reedit), True)
+            check("dirty: repo, journal append alone → not dirty",
+                  dirty_after(R, "rj", "echo '## entry' >> .bobnet/journal.md"), False)
+        for c, want in [("cd x && ls", False), ("git ls-files", False), ("rm foo", True),
+                        ("echo hi > src/app.py", True), ("ls 2>/dev/null", False),
+                        ("find . -name '*.pyc' -delete", True)]:
+            check(f"dirty: no repo, {c!r}", dirty_after(N, f"n{abs(hash(c))}", c), want)
+
+    print("journal waits for background Bobs")
+    def stop(sid, **kw):
+        return decision(run("bobnet_log.py", dict({"session_id": sid}, **kw), project=P)[1])
+    def spawn(sid, aid):
+        run("bobnet_mark.py", {"session_id": sid, "tool_name": "Agent",
+                               "tool_input": {"subagent_type": "bobiverse:bill"},
+                               "tool_response": {"status": "async_launched", "agentId": aid}}, project=P)
+    def sub_stop(sid, aid, active=False):
+        return decision(run("drift.py", {"session_id": sid, "agent_id": aid, "stop_hook_active": active}, project=P)[1])
+    sid = "bg1"
+    run("bobnet_mark.py", edit("src/x.py", "y", sid), project=P)
+    spawn(sid, "agentaaa111")
+    check("stop: dirty but a Bob is still out → allow", stop(sid), "allow")
+    check("stop: …and the one-time ask isn't used up", Path(P, ".bobnet", f"logreq-{sid}.marker").exists(), False)
+    check("drift: that Bob's first stop → block", sub_stop(sid, "agentaaa111"), "block")
+    check("stop: Bob blocked by drift hasn't reported → allow", stop(sid), "allow")
+    check("drift: that Bob's second stop → allow", sub_stop(sid, "agentaaa111", active=True), "allow")
+    check("stop: every Bob reported → block (ask for the log)", stop(sid), "block")
+    sid = "bg2"
+    run("bobnet_mark.py", edit("src/x.py", "y", sid), project=P)
+    spawn(sid, "agentbbb111"); spawn(sid, "agentbbb222")
+    sub_stop(sid, "agentbbb111"); sub_stop(sid, "agentbbb111", active=True)
+    check("stop: two Bobs out, one reported → allow", stop(sid), "allow")
+    sid = "bg3"  # foreground Agent: the subagent stops before the Agent call returns
+    run("bobnet_mark.py", edit("src/x.py", "y", sid), project=P)
+    sub_stop(sid, "agentccc111"); sub_stop(sid, "agentccc111", active=True); spawn(sid, "agentccc111")
+    check("stop: foreground Bob (finished before spawn recorded) → block", stop(sid), "block")
+    sid = "bg4"
+    run("bobnet_mark.py", edit("src/x.py", "y", sid), project=P)
+    spawn(sid, "agentddd111")
+    old = time.time() - 7200
+    spawned = Path(P, ".bobnet", f"agent.agentddd111-{sid}.marker")
+    if spawned.exists():
+        os.utime(spawned, (old, old))
+    check("stop: a Bob that never reported (2h old) doesn't hold the log forever", stop(sid), "block")
+    check("drift: first Bob in a session → block", sub_stop("bg5", "agenteee111"), "block")
+    check("drift: second Bob in the same session is also checked", sub_stop("bg5", "agenteee222"), "block")
+    by_path = lambda aid: decision(run("drift.py", {"session_id": "bg6",
+                                   "agent_transcript_path": f"/x/subagents/agent-{aid}.jsonl"}, project=P)[1])
+    by_path("a8a74e3206bf18900")
+    check("drift: agent id read from the transcript path (other Bob still checked)",
+          by_path("abb2bdd48ba4fb992"), "block")
+
+    print("compliance: PHI guard activity")
+    run("phi_guard.py", bash("ls -la", "phi3"), project=P)
+    run("phi_guard.py", write("src/a.py", "print('hello')", "phi3"), project=P)
+    run("phi_guard.py", bash(f"echo {REAL_SSN}", "phi3"), project=P)
+    tally = Path(P, ".bobnet", "audit", f"phi-scans-{time.strftime('%Y-%m')}.tsv")
+    rows = tally.read_text(encoding="utf-8").splitlines() if tally.exists() else []
+    check("phi tally: one row per scan, outcome only",
+          (len(rows) >= 3, all(REAL_SSN not in r for r in rows)), (True, True))
+    env_c = dict(os.environ, CLAUDE_PROJECT_DIR=P)
+    env_c.pop("BOBNET_DIR", None)
+    out = subprocess.run([sys.executable, str(HERE / "compliance_check.py"), "--project", P],
+                         capture_output=True, timeout=60, env=env_c).stdout.decode("utf-8")
+    check("compliance: reports how many writes/commands PHI guard scanned",
+          bool(re.search(r"PHI guard activity:\*\* \d+ writes/commands scanned this month · [1-9]\d* flagged", out)), True)
+
+
+    print("preflight seal (cleared commit vs what ships)")
+    with tempfile.TemporaryDirectory() as Q:
+        Path(Q, "envs").mkdir()
+        tfv = Path(Q, "envs", "qa.tfvars")
+        tfv.write_text('security_scan_enabled = false\nsql_db_owners = [\n  "app-identity",\n]\nsql_admin_password = "hunter2"\nsku = "S1"\n',
+                       encoding="utf-8")
+        pipe = Path(Q, "pipeline.yml"); pipe.write_text("steps: []\n", encoding="utf-8")
+        def seal(*a):
+            return subprocess.run([sys.executable, str(HERE / "preflight_seal.py"), *a], cwd=Q, capture_output=True,
+                                  timeout=60, env=dict(os.environ, CLAUDE_PROJECT_DIR=Q)).stdout.decode("utf-8")
+        def gate_push(cmd="git push origin main"):
+            return run("gate.py", dict(bash(cmd, "seal"), cwd=Q), "pre", "preflight_seal", project=Q)[1]
+        check("seal: no record → push allowed silently", gate_push().strip(), "")
+        out = seal("record", "--env", "qa", "--verdict", "GO", "--sha", "f428ea2",
+                   "--watch", "pipeline.yml", "--value", "envs/qa.tfvars:security_scan_enabled",
+                   "--value", "envs/qa.tfvars:sql_db_owners", "--value", "envs/qa.tfvars:sql_admin_password",
+                   "--trigger", "5xx > 2% for 5 min")
+        rec = json.loads(Path(Q, ".bobnet", "preflight-qa.json").read_text(encoding="utf-8"))
+        check("seal: record holds the cleared commit and values",
+              (rec["cleared_sha"], [v["value"] for v in rec["values"]][:2]),
+              ("f428ea2", ["false", '[ "app-identity", ]']))
+        check("seal: secret-looking value stored as a hash, never in clear",
+              rec["values"][2]["value"].startswith("sha256:") and "hunter2" not in json.dumps(rec), True)
+        check("seal: unchanged tree → push allowed", gate_push().strip(), "")
+        check("seal: a read-only command never triggers it", run("gate.py", dict(bash("git status", "seal"), cwd=Q),
+              "pre", "preflight_seal", project=Q)[1].strip(), "")
+        tfv.write_text('security_scan_enabled = true\nsql_db_owners = [\n  "app-identity",\n  "adf-identity",\n]\n'
+                       'sql_admin_password = "hunter2"\nsku = "S1"\n', encoding="utf-8")
+        out = gate_push()
+        check("seal: 71e78ce case (scan flipped, ADF added) → ask naming both keys",
+              (decision(out), "security_scan_enabled" in out and "adf-identity" in out), ("ask", True))
+        check("seal: terraform apply is also checked", decision(gate_push("terraform apply -var-file=envs/qa.tfvars")), "ask")
+        v = seal("verify", "--env", "qa", "--deployed", "71e78ce")
+        check("seal verify: deployed commit isn't the cleared one", "NOT the cleared commit" in v and "security_scan_enabled" in v, True)
+        tfv.write_text('security_scan_enabled = false\nsql_db_owners = [\n  "app-identity",\n]\nsql_admin_password = "changed"\nsku = "S1"\n',
+                       encoding="utf-8")
+        out = gate_push()
+        check("seal: changed secret → ask without printing it",
+              (decision(out), "secret changed" in out and "changed\"" not in out), ("ask", True))
+        rec["expires_epoch"] = 0
+        Path(Q, ".bobnet", "preflight-qa.json").write_text(json.dumps(rec), encoding="utf-8")
+        check("seal: expired record → silent", gate_push().strip(), "")
+
+
+    print("regressions from Homer's v0.4.2 review")
+    sid = "hr1"  # report text mentioning "agentId: <word>" must not become a phantom spawn
+    run("bobnet_mark.py", edit("src/x.py", "y", sid), project=P)
+    sub_stop(sid, "realid99"); sub_stop(sid, "realid99", active=True)
+    run("bobnet_mark.py", {"session_id": sid, "tool_name": "Agent", "tool_input": {},
+                           "tool_response": {"content": [{"type": "text", "text": "Fixed: agentId: pending_agents ignored"}],
+                                             "agentId": "realid99"}}, project=P)
+    check("agent id comes from the field, not the report text", stop(sid), "block")
+    if have_git:
+        with tempfile.TemporaryDirectory() as R2:
+            g2 = lambda *a, cwd=R2: subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", *a],
+                                                    cwd=cwd, capture_output=True)
+            g2("init", "-q"); Path(R2, "f").write_text("a"); Path(R2, "sub").mkdir(); Path(R2, "sub", "s").write_text("a")
+            g2("add", "."); g2("commit", "-qm", "init")
+            Path(R2, "sub", "s").write_text("modified before the session")
+            Path(R2, "newdir").mkdir(); Path(R2, "newdir", "n.txt").write_text("untracked")
+            check("dirty: committing code together with the journal still counts",
+                  dirty_after(R2, "hj", "git status", "git add f .bobnet/journal.md; git commit -qam wip",
+                              between=lambda: (Path(R2, "f").write_text("z"), g2("add", "f"), g2("commit", "-qm", "wip"))), True)
+            def append_sub():
+                time.sleep(0.02); Path(R2, "sub", "s").write_text("modified again")
+            SUB = str(Path(R2, "sub"))
+            check("dirty: project dir is a repo subdirectory, re-edit counts",
+                  dirty_after(SUB, "hsub", "ls", "./fmt.sh", between=append_sub), True)
+            def append_untracked():
+                time.sleep(0.02)
+                with open(Path(R2, "newdir", "n.txt"), "a") as fh:
+                    fh.write("more")
+            check("dirty: in-place append inside an untracked directory counts",
+                  dirty_after(R2, "hun", "ls", "./gen.sh", between=append_untracked), True)
+        Path(P, "flags").mkdir(exist_ok=True)
+        for c in ["terraform -chdir=envs apply", "tofu -chdir=x apply -auto-approve", "git -C . push origin main",
+                  "kubectl -n prod apply -f k.yaml"]:
+            check(f"dirty: global flags before the verb, {c!r}", dirty_after(str(Path(P, "flags")), f"hf{abs(hash(c))}", c), True)
+    with tempfile.TemporaryDirectory() as Q2:
+        t = Path(Q2, "t.tfvars")
+        t.write_text(
+            'tags = {\n  enabled = "nested"\n  note = "has ] bracket"\n}\n'
+            'enabled = false\n'
+            'weird = "a\\\\"\n'
+            'after_weird = 1\n'
+            'list = [ # comment with [ bracket\n  "x",\n]\n'
+            "semi = 'single [quote'\n"
+            'cfg = <<EOT\nline [one\nEOT\n'
+            'url = "x" // trailing\n'
+            'sku="S1"\n', encoding="utf-8")
+        sys.path.insert(0, str(HERE))
+        import importlib
+        ps = importlib.import_module("preflight_seal")
+        for key, want in [("enabled", "false"), ("weird", '"a\\\\"'), ("after_weird", "1"), ("list", '[ "x", ]'),
+                          ("semi", "'single [quote'"), ("cfg", "<<EOT line [one EOT"), ("url", '"x"'), ("sku", '"S1"'),
+                          ("note", None)]:
+            check(f"tfvars value: {key}", ps.read_value(t, key), want)
+        Path(Q2, "envs").mkdir(); tq = Path(Q2, "envs", "qa.tfvars"); tq.write_text("scan = false\n", encoding="utf-8")
+        subprocess.run([sys.executable, str(HERE / "preflight_seal.py"), "record", "--env", "qa", "--verdict", "GO",
+                        "--sha", "abc", "--value", "envs/qa.tfvars:scan"], cwd=Q2, capture_output=True,
+                       env=dict(os.environ, CLAUDE_PROJECT_DIR=Q2))
+        tq.write_text("scan = true\n", encoding="utf-8")
+        for c in ["terraform -chdir=envs apply", "git -C . push origin main"]:
+            check(f"seal: global flags before the verb, {c!r} → ask",
+                  decision(run("gate.py", dict(bash(c, "hs"), cwd=Q2), "pre", "preflight_seal", project=Q2)[1]), "ask")
+
 
     print("robustness")
     check(

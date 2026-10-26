@@ -7,11 +7,43 @@ Field names in Claude Code's hook JSON have varied across versions; this
 normalizes the common spellings so the hooks don't care.
 """
 
+import hashlib
 import json
 import os
+import re
+import subprocess
 import sys
 import time
 from pathlib import Path
+
+
+def utf8_stdio():
+    """Hook output must be UTF-8 whatever the console code page is (Windows
+    defaults to cp1252, which turns · and — into mojibake). Guarded: stdout may
+    be a StringIO under gate.py, or missing reconfigure on old Pythons."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
+def read_stdin_text() -> str:
+    """Read the hook event as UTF-8 bytes, not in the locale encoding. On Windows
+    a non-ASCII character in the event used to fail decoding, read_event fell back
+    to an empty Event, and every gate allowed the command."""
+    buffer = getattr(sys.stdin, "buffer", None)
+    if buffer is not None:
+        return buffer.read().decode("utf-8", errors="replace")
+    return sys.stdin.read()  # already text (gate.py passes a StringIO)
+
+
+utf8_stdio()
+
+
+def safe_id(value) -> str:
+    """An agent id usable in a marker filename."""
+    return re.sub(r"[^A-Za-z0-9_-]", "", str(value or ""))[:64]
 
 
 class Event:
@@ -28,6 +60,10 @@ class Event:
         self.source = g("source") or ""
         self.stop_hook_active = bool(g("stop_hook_active"))
         self.transcript = g("transcript_path") or ""
+        self.agent_id = safe_id(g("agent_id") or g("agentId") or "")
+        if not self.agent_id:  # fall back to the subagent transcript name: agent-<id>.jsonl
+            m = re.search(r"agent-([A-Za-z0-9_-]+)\.jsonl$", str(g("agent_transcript_path") or ""))
+            self.agent_id = m.group(1) if m else ""
         self.message = g("message") or ""
         self.notification_type = g("notification_type") or g("type") or ""
 
@@ -71,7 +107,7 @@ _EVENT: "Event | None" = None
 def read_event() -> Event:
     global _EVENT
     try:
-        data = sys.stdin.read()
+        data = read_stdin_text()
         _EVENT = Event(json.loads(data) if data.strip() else {})
     except Exception:
         _EVENT = Event({})
@@ -113,8 +149,13 @@ def ensure_bobnet(ev: Event) -> Path:
             # The audit log and compliance packs may hold paths/commands from a real
             # environment; they're evidence to export deliberately, not to commit by accident.
             gi.write_text(
-                "*.marker\nmission-*.md\nbusters.disarmed\naudit/\ncompliance/\n"
+                "*.marker\nmission-*.md\nbusters.disarmed\naudit/\ncompliance/\npreflight-*.json\n",
+                encoding="utf-8",
             )
+        elif "preflight-*.json" not in gi.read_text(encoding="utf-8", errors="ignore"):
+            # Added in v0.4.2: preflight records hold environment values; keep them out of git.
+            with gi.open("a", encoding="utf-8") as f:
+                f.write("preflight-*.json\n")
     except Exception:
         pass
     return d
@@ -122,6 +163,88 @@ def ensure_bobnet(ev: Event) -> Path:
 
 def marker(ev: Event, name: str) -> Path:
     return ensure_bobnet(ev) / f"{name}-{ev.session}.marker"
+
+
+def pending_agents(ev: Event, max_age_s: int = 3600) -> int:
+    """Background Bobs spawned this session that haven't finished yet.
+
+    bobnet_mark drops `agent.<id>` when an Agent/Task call returns, and drift
+    drops `agentdone.<id>` when that subagent is allowed to stop. Either can
+    land first, so this is a set difference, not a counter. A spawn older than
+    max_age_s is ignored so a crashed or cancelled agent can't hold the journal
+    prompt off forever. A finish without an id cancels one spawn by count.
+    """
+    try:
+        d = bobnet_dir(ev)
+        suffix = f"-{ev.session}.marker"
+        cutoff = time.time() - max_age_s
+
+        def ids(prefix: str, fresh_only: bool) -> set:
+            out = set()
+            for p in d.glob(f"{prefix}.*{suffix}"):
+                if fresh_only and p.stat().st_mtime < cutoff:
+                    continue
+                out.add(p.name[len(prefix) + 1 : -len(suffix)])
+            return out
+
+        spawned = ids("agent", fresh_only=True)
+        done = ids("agentdone", fresh_only=False)
+        anonymous = {i for i in ids("agentdone", fresh_only=True) if i.startswith("anon")}
+        return max(0, len(spawned - done) - len(anonymous))
+    except Exception:
+        return 0
+
+
+def git_state(ev: "Event"):
+    """Hash of the repo's git state, or None if git is unavailable or slow.
+
+    Covers HEAD and ahead/behind (so commit, checkout and push count), every
+    listed path (untracked files one by one, not collapsed to their directory),
+    and each path's mtime (so re-editing an already-modified file counts).
+    Paths under any .bobnet/ are left out, so writing the journal or markers
+    never looks like a change. Paths are joined to the repo root, not the
+    project dir, which may be a subdirectory.
+    """
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or ev.cwd
+    try:
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
+                             capture_output=True, timeout=2)
+        if top.returncode != 0:
+            return None
+        top_dir = top.stdout.decode("utf-8", "replace").strip()
+        r = subprocess.run(
+            ["git", "--no-optional-locks", "status", "--porcelain=v2", "--branch", "-z",
+             "--untracked-files=all"],
+            cwd=top_dir, capture_output=True, timeout=2,
+        )
+    except Exception:
+        return None
+    if r.returncode != 0:
+        return None
+    h = hashlib.sha256()
+    skip_next, statted = False, 0
+    for rec in r.stdout.decode("utf-8", "replace").split("\0"):
+        if skip_next:
+            skip_next = False
+            continue
+        if rec.startswith(("# branch.oid", "# branch.head", "# branch.ab")):
+            h.update(rec.encode())
+            continue
+        fields = {"1": 8, "2": 9, "u": 10, "?": 1}.get(rec[:1])
+        if fields is None:
+            continue
+        skip_next = rec[:1] == "2"  # a rename's original path follows
+        path = rec.split(" ", fields)[-1]
+        if path.startswith(".bobnet/") or "/.bobnet/" in path:
+            continue
+        h.update(rec.encode())
+        if statted < 2000:  # bound the cost in a huge dirty tree
+            statted += 1
+            try:
+                h.update(str(os.stat(os.path.join(top_dir, path)).st_mtime_ns).encode())
+            except OSError:
+                pass
+    return h.hexdigest()
 
 
 def touch(p: Path):
@@ -137,7 +260,7 @@ def load_config(ev: Event, name: str, default: dict) -> dict:
     p = bobnet_dir(ev) / f"{name}.json"
     try:
         if p.exists():
-            user = json.loads(p.read_text())
+            user = json.loads(p.read_text(encoding="utf-8"))
             merged = dict(default)
             merged.update(user)
             return merged

@@ -1,6 +1,6 @@
 # Bobiverse — a crew for Claude Code
 
-A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-two agents, fifteen commands, fourteen hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
+A Claude Code plugin modeled on Dennis E. Taylor's *Bobiverse*. Twenty-two agents, sixteen commands, fifteen hooks, a status line, and an output style. Every Bob's personality maps onto a real role in a dev/sec/ops workflow, and the hooks turn the crew's safety rules from polite requests into enforced ones.
 
 ```
 bobiverse/
@@ -76,7 +76,8 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | `/framejack <problem>` | Deep-think planning. Bill designs, Marvin pre-mortems, you get a plan. Executes nothing until you say **go** |
 | `/replicate <N> <task>` | Fan out to N Garfields (or `--roamers`) in worktrees, merge, Homer checks the result |
 | `/expedition [path]` | Milo surveys an unfamiliar repo → `EXPEDITION.md` with hazards |
-| `/preflight <target>` | Riker's deploy checklist with rollback triggers defined *before* the deploy. GO / NO-GO |
+| `/preflight <target>` | Riker's deploy checklist with rollback triggers defined *before* the deploy. GO / NO-GO. Records the cleared commit and values; `--verify <env> <sha>` checks a deployment against them |
+| `/build <spec>` | Garfield builds, Homer tests, Garfield fixes; at most three rounds, ending green or with a hand-back that says why |
 | `/postmortem <incident>` | Riker reconstructs the timeline from evidence, Howard writes the blameless doc |
 | `/drift [spec]` | Compare the work to the original ask. Done / partial / missing / drift |
 | `/uplift <code>` | Archimedes builds a learning path for someone new to it |
@@ -94,11 +95,12 @@ Requirements: Python 3.8+ on PATH (hooks are stdlib-only). Formatters/linters/sc
 | **SUDDAR** | `PreToolUse` Write/Edit, `git commit` | Denies writes containing credential-shaped strings (AWS/GitHub/Slack/Stripe/OpenAI keys, private key blocks, JWTs, DB URLs with passwords, generic `password=`/`api_key=`) and writes to secret-bearing paths (`.env`, `*.pem`, `id_rsa`, kubeconfig, tfstate…). Tolerates placeholders. Runs `gitleaks`/`trufflehog` on staged changes at commit if installed. |
 | **Prime Directive** | `PreToolUse` Write/Edit/Bash | Protected zones → permission prompt: CI workflows, prod infra, IAM/RBAC, migrations, Dockerfiles, lockfiles, CODEOWNERS, the hooks' own config. `.git/config` and friends → denied outright. |
 | **Autofactory** | `PostToolUse` Write/Edit | Runs the formatter already installed for the file type (ruff/black, prettier, gofmt, rustfmt, shfmt, terraform fmt). Runs the linter **only when the project has configured it** (`ruff.toml`/`[tool.ruff]`, eslint config, `.yamllint`); compile-style checks with no rule set to argue about (go vet, cargo check, terraform validate, shellcheck, hadolint, tsc) always run. Failures go straight back to Claude as feedback. |
-| **Replicative drift** | `SubagentStop` | Blocks a subagent's first stop and makes it append a `DRIFT CHECK` — requirements addressed / missed / out-of-scope work — so Bob integrates correctly. |
-| **Jeeves** | `SessionStart` | Situational brief: branch, dirty files, recent commits, worktrees, last 3 journal entries, Bender research in progress, TODO count, which hooks are armed. |
-| **Mission brief** | `UserPromptSubmit` + `SessionStart(compact)` | Saves the first prompt of the session verbatim; re-injects it after context compaction so the original success criteria survive the summary. |
-| **Bobnet log** | `Stop` | If the session changed anything and no journal entry was written, blocks once and asks for a 10-line "Bob's log" entry in `.bobnet/journal.md`. Never nags twice. |
-| **PHI Guard** | `PreToolUse` Write/Edit/Bash | Validated PII/PHI detection (SSN ranges, Luhn-checked cards, NPI checksum, Medicare MBI, DEA checksum, labelled MRN/member IDs; DOB-near-name, diagnosis codes, phone-near-name, bulk emails). Identifiers in a write → deny; combinations → ask; identifiers in a command → ask. Documented test values are ignored. |
+| **Replicative drift** | `SubagentStop` | Blocks each subagent's first stop and makes it append a `DRIFT CHECK` — requirements addressed / missed / out-of-scope work — so Bob integrates correctly. |
+| **Jeeves** | `SessionStart` | Situational brief: branch, dirty files, recent commits, worktrees, last 3 journal entries, Bender research in progress, preflight records that no longer match the tree, TODO count, which hooks are armed. |
+| **Mission brief** | `UserPromptSubmit` + `SessionStart(compact)` | Saves the first real ask of the session verbatim (for a slash command, the command and its arguments; notifications, subagent hand-backs and local commands like `/model` are skipped); re-injects it after context compaction so the original success criteria survive the summary. |
+| **Bobnet log** | `Stop` | If the session changed anything and no journal entry was written, blocks once and asks for a 10-line "Bob's log" entry in `.bobnet/journal.md`. "Changed" means a Write/Edit, or a Bash command that changed git state or reached beyond the machine (deploys, pushes, `terraform apply`); reading and running tests don't count. Waits until every background Bob has reported. Never nags twice. |
+| **Preflight seal** | `PreToolUse` Bash | On a push, apply or deploy, if a `/preflight` record's cleared values or watched files have changed, asks and names exactly what moved. Never denies. Silent with no records. |
+| **PHI Guard** | `PreToolUse` Write/Edit/Bash | Validated PII/PHI detection (SSN ranges, Luhn-checked cards, NPI checksum, Medicare MBI, DEA checksum, labelled MRN/member IDs; DOB-near-name, diagnosis codes, phone-near-name, bulk emails). Identifiers in a write → deny; combinations → ask; identifiers in a command → ask. Documented test values are ignored. Tallies every scan (outcome only) so `/compliance` can show it ran. |
 | **Data Zones** | `PreToolUse` Read/Grep/Glob/Edit/Write/Bash/MCP | Classified paths, SQL tables and storage URIs from `.bobnet/data-zones.json` → ask or deny *before* the data reaches the model. Built-in ask zones: `phi/`, `pii/`, HL7, DICOM, C-CDA, X12 835/837. |
 | **Egress** | `PreToolUse` WebFetch/WebSearch/Bash | Personal data in a URL, query or curl body → deny. Domain policy: `audit` (default, logged), `ask`, or `deny` with an allowlist. |
 | **Audit chain** | `PostToolUse` all tools + every gate decision | Append-only JSONL under `.bobnet/audit/`, each entry SHA-256-chained to the last; targets redacted; Prime Directive denies Claude any edit there. `audit_verify.py` finds the first tampered line. |
@@ -123,6 +125,7 @@ Created in the project root on first use.
 ├── scut.json
 ├── .gitignore            ← auto-written; ignores the session markers below
 ├── mission-<session>.md
+├── preflight-<env>.json  ← what /preflight cleared; gitignored
 ├── busters.disarmed
 └── *.marker
 ```

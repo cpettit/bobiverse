@@ -10,14 +10,25 @@ output vs. assignment. The second stop attempt (stop_hook_active) is allowed.
 No external model call; the subagent grades itself against its own instructions,
 which is cheap and surprisingly effective at catching "I fixed something else."
 """
+import uuid
 from bobnet import read_event, allow, block, marker, touch
 
 ev = read_event()
+
+
+def finished():
+    """This subagent is allowed to stop: tell bobnet_log it has reported."""
+    touch(marker(ev, f"agentdone.{ev.agent_id or 'anon' + uuid.uuid4().hex[:12]}"))
+    allow()
+
+
 if ev.stop_hook_active:
-    allow()
-m = marker(ev, "drift")
+    finished()
+# One check per subagent. Subagents share the session id, so keying on the
+# session alone meant only the first Bob in a moot was ever checked.
+m = marker(ev, f"drift.{ev.agent_id}" if ev.agent_id else "drift")
 if m.exists():
-    allow()
+    finished()
 touch(m)
 block(
     "REPLICATIVE DRIFT CHECK (Bobnet protocol — do this once, then stop):\n"

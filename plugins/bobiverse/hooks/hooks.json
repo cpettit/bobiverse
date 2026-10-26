@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre busters prime_directive suddar phi_guard data_zones egress",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/scripts/gate.py\" pre busters prime_directive suddar phi_guard data_zones egress preflight_seal",
             "timeout": 120
           }
         ]

@@ -82,9 +82,27 @@ GUARDS = [
 
 def load(p: Path):
     try:
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def phi_activity(audit: Path) -> str:
+    """One line from phi_guard's scan tally: evidence that the guard actually ran,
+    not only that it was wired. Reads the current month's file."""
+    f = audit / f"phi-scans-{time.strftime('%Y-%m')}.tsv"
+    if not f.exists():
+        return "no scans recorded this month"
+    counts: dict[str, int] = {}
+    for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
+        parts = line.split("\t")
+        if len(parts) >= 3:
+            counts[parts[2]] = counts.get(parts[2], 0) + 1
+    scanned = counts.get("clean", 0) + counts.get("flagged", 0)
+    return (
+        f"{scanned} writes/commands scanned this month · {counts.get('flagged', 0)} flagged"
+        f" · {counts.get('skipped', 0)} skipped (allowlisted path)"
+    )
 
 
 def wired_scripts() -> set[str]:
@@ -120,7 +138,7 @@ def report(project: Path) -> tuple[str, dict]:
         sorted((bn / "audit").glob("audit-*.jsonl")) if (bn / "audit").exists() else []
     )
     if ok and files:
-        last = files[-1].read_text().strip().splitlines()
+        last = files[-1].read_text(encoding="utf-8").strip().splitlines()
         head = json.loads(last[-1])["hash"] if last else ""
 
     lines = [
@@ -164,6 +182,7 @@ def report(project: Path) -> tuple[str, dict]:
     lines.append(
         f"- **PHI guard:** medium-severity → `{pg.get('medium', 'ask')}` · {len(pg.get('allow_paths', []))} allowlisted paths"
     )
+    lines.append(f"- **PHI guard activity:** {phi_activity(bn / 'audit')}")
     au = cfg.get("audit") or {}
     lines.append(
         f"- **Audit log:** {'enabled' if au.get('enabled', True) else '❌ DISABLED'}"
@@ -225,9 +244,10 @@ def export(project: Path, text: str, meta: dict) -> Path:
     if out.exists():
         out = out.with_name(out.name + time.strftime("-%H%M%S"))
     (out / "config").mkdir(parents=True, exist_ok=True)
-    (out / "posture.md").write_text(text)
+    (out / "posture.md").write_text(text, encoding="utf-8")
     (out / "audit-verify.txt").write_text(
-        f"{'OK' if meta['ok'] else 'BROKEN'}\n{meta['msg']}\nhead: {meta['head']}\n"
+        f"{'OK' if meta['ok'] else 'BROKEN'}\n{meta['msg']}\nhead: {meta['head']}\n",
+        encoding="utf-8",
     )
     if (bn / "audit").exists():
         shutil.copytree(
@@ -248,7 +268,8 @@ def export(project: Path, text: str, meta: dict) -> Path:
         f"Evidence pack sha256 (all files above, path-ordered): {digest.hexdigest()}\n\n"
         "To make this tamper-evident beyond this machine, record both values somewhere you\n"
         "control and Claude can't write: a signed git tag, a ticket, a WORM bucket object,\n"
-        "your SIEM. Later, re-run the export and compare.\n"
+        "your SIEM. Later, re-run the export and compare.\n",
+        encoding="utf-8",
     )
     return out
 
@@ -258,6 +279,11 @@ if __name__ == "__main__":
     ap.add_argument("--project", default=os.environ.get("CLAUDE_PROJECT_DIR") or ".")
     ap.add_argument("--export", action="store_true")
     a = ap.parse_args()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     project = Path(a.project).resolve()
     text, meta = report(project)
     print(text)

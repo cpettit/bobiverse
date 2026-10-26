@@ -2,8 +2,9 @@
 """
 bobnet_log.py — Stop. The Bobnet journal.
 
-If this session did real work (an Edit/Write/Bash happened — the autofactory and
-mission hooks drop a `dirty` marker) and no journal entry has been written yet,
+If this session did real work (bobnet_mark drops a `dirty` marker on a Write/Edit,
+or a Bash command that changed git state or reached beyond the machine), no
+journal entry has been written yet, and no background Bob is still running,
 block the stop ONCE and ask Claude to append a "Bob's log" entry to
 .bobnet/journal.md. The companion PostToolUse hook (`bobnet_mark.py`) notices the
 journal being written and drops a `logged` marker so the next stop goes through.
@@ -14,7 +15,7 @@ second Stop hook racing this one).
 import subprocess
 import sys
 from pathlib import Path
-from bobnet import read_event, allow, block, marker, bobnet_dir, now
+from bobnet import read_event, allow, block, marker, bobnet_dir, now, pending_agents, touch
 
 ev = read_event()
 
@@ -31,9 +32,11 @@ if not marker(ev, "dirty").exists():
     allow()            # nothing changed this session; no log needed
 if marker(ev, "logged").exists():
     allow()
+if pending_agents(ev):
+    allow()            # Bobs still out: ask after they've all reported, not now
 if marker(ev, "logreq").exists():
     allow()            # we already asked once; don't nag
-marker(ev, "logreq").touch()
+touch(marker(ev, "logreq"))
 
 journal = bobnet_dir(ev) / "journal.md"
 block(

@@ -33,12 +33,15 @@ Thoth is **not** on this table on purpose. A moot is the crew thinking in parall
 
 Default for an architecture/plan decision: **bill + marvin + homer + riker**, add `milo` first if the codebase is unfamiliar, add `mario`/`medeiros` if anything touches auth, data, or the network, add `charles` if anything touches cloud resources or IaC.
 
+**Hold until everyone reports.** Bobs spawned in the background report one at a time. Don't send the human an interim summary as each one lands. Acknowledge each arrival in one line at most, and integrate only once every Bob you spawned has reported. Interrupt the human early for exactly two things: a Marvin FATAL that changes the plan, or a blocker that makes the brief wrong, such as missing access or an ask that turns out to mean something else. Say which Bob raised it, then keep waiting for the rest. If one Bob is still running long after the others, such as Charles waiting on a plan, say so once and integrate without that Bob, marking the gap.
+
 ## 3. Integrate
-When the Bobs report back:
+When **all** the Bobs have reported back:
 - Lay out where they **agree** (that's probably right).
 - Lay out where they **disagree**, and say which one you side with and why — don't average them into mush.
 - Marvin's FATAL items either get a rebuttal or they win. No ignoring Marvin.
 - Call out the **one decision** the human has to make, if any. Everything else, decide and flag.
+- If Garfield's plan ends with a "Parallelizable: N pieces" section whose pieces touch separate files, the build step is a fan-out. Name it in next steps as `/replicate N` with Garfield's split. A Bob can't spawn other Bobs, so the fan-out is always yours, never Garfield's.
 
 ## 4. Report
 Short. Decision/recommendation up front, reasoning after, dissent recorded, next steps with a Bob's name on each. End with what the moot *didn't* cover.
